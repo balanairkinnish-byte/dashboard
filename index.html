@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Road to Mil — Trading Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0b0c0f; --surface:#13151a; --surface2:#1a1d24;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.12);
+  --text:#f0ede8; --text2:#8a8680; --text3:#4a4845;
+  --accent:#e8b84b; --accent2:#c49433;
+  --green:#4caf7d; --green-bg:rgba(76,175,125,0.12);
+  --red:#e05c5c;   --red-bg:rgba(224,92,92,0.12);
+  --blue:#5b9cf6;  --blue-bg:rgba(91,156,246,0.12);
+  --mono:'DM Mono',monospace; --display:'Syne',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(232,184,75,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,184,75,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+/* ── TAB NAV ── */
+.tab-nav{display:flex;gap:0;border-bottom:1px solid var(--border2);margin-bottom:2rem;position:sticky;top:0;background:var(--bg);z-index:50;padding:0 1.5rem;}
+.tab-nav-inner{max-width:1180px;margin:0 auto;display:flex;gap:0;width:100%;}
+.tab-btn{padding:14px 24px;font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;background:transparent;border:none;color:var(--text3);cursor:pointer;position:relative;transition:color 0.15s;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab-btn:hover{color:var(--text2);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+.container{max-width:1180px;margin:0 auto;padding:0 1.5rem 4rem;position:relative;z-index:1;}
+
+/* ── HEADER ── */
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2rem;gap:1rem;flex-wrap:wrap;}
+.header-brand{display:flex;align-items:center;gap:16px;}
+.logo-circle{width:56px;height:56px;border-radius:12px;background:var(--surface2);border:1px dashed var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;flex-shrink:0;transition:border-color 0.2s;}
+.logo-circle:hover{border-color:var(--accent);}
+.logo-circle img{width:100%;height:100%;object-fit:cover;border-radius:11px;}
+.logo-circle .logo-placeholder{font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);text-align:center;line-height:1.4;padding:4px;}
+#logoFileInput{display:none;}
+.eyebrow{font-size:10px;letter-spacing:0.2em;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+h1{font-family:var(--display);font-size:clamp(26px,4vw,44px);font-weight:800;color:var(--text);line-height:1.05;letter-spacing:-0.02em;}
+h1 span{color:var(--accent);}
+.subtitle{color:var(--text2);font-size:12px;margin-top:5px;letter-spacing:0.04em;}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;padding-top:8px;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.05em;cursor:pointer;border:1px solid var(--border2);transition:all 0.15s;text-transform:uppercase;}
+.btn-outline{background:transparent;color:var(--text2);}
+.btn-outline:hover{background:var(--surface2);color:var(--text);}
+.btn-accent{background:var(--accent);color:#0b0c0f;border-color:var(--accent);font-weight:600;}
+.btn-accent:hover{background:var(--accent2);border-color:var(--accent2);}
+.btn-green{background:var(--green-bg);color:var(--green);border-color:rgba(76,175,125,0.3);}
+.btn-green:hover{background:rgba(76,175,125,0.2);}
+.btn-blue{background:var(--blue-bg);color:var(--blue);border-color:rgba(91,156,246,0.3);}
+.btn-blue:hover{background:rgba(91,156,246,0.2);}
+.btn-danger{background:var(--red-bg);color:var(--red);border-color:rgba(224,92,92,0.3);}
+.btn-danger:hover{background:rgba(224,92,92,0.2);}
+.btn-lg{padding:12px 22px;font-size:12px;}
+
+/* ── SETTINGS PANEL ── */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;}
+@media(max-width:700px){.settings-grid{grid-template-columns:1fr;}}
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;}
+.settings-card-full{grid-column:1/-1;}
+.settings-label{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.settings-label span{font-size:16px;}
+.field-group{display:flex;flex-direction:column;gap:10px;}
+.field-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.field-label{font-size:11px;color:var(--text2);min-width:90px;}
+input[type="date"]{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:8px 12px;outline:none;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;color-scheme:dark;width:100%;}
+input[type="date"]:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,184,75,0.15);}
+.date-calc-display{margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);}
+.date-calc-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;}
+.date-calc-row .dcl{color:var(--text3);}
+.date-calc-row .dcv{color:var(--text);font-weight:500;}
+.date-calc-row .dcv.accent{color:var(--accent);}
+
+/* Logo upload area */
+.logo-upload-area{display:flex;align-items:center;gap:16px;}
+.logo-preview-big{width:80px;height:80px;border-radius:14px;background:var(--surface2);border:1px dashed var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
+.logo-preview-big img{width:100%;height:100%;object-fit:cover;border-radius:13px;}
+.logo-preview-big .lp-placeholder{font-size:10px;color:var(--text3);text-align:center;padding:6px;}
+.logo-upload-info{flex:1;}
+.logo-upload-info p{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:10px;}
+.logo-name{font-size:11px;color:var(--text3);margin-top:6px;}
+
+/* Import area */
+.drop-area{border:1px dashed var(--border2);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;}
+.drop-area:hover,.drop-area.drag-over{border-color:var(--accent);background:rgba(232,184,75,0.04);}
+.drop-area-icon{font-size:28px;margin-bottom:8px;}
+.drop-area-text{font-size:12px;color:var(--text2);}
+.drop-area-sub{font-size:11px;color:var(--text3);margin-top:4px;}
+#importFileHidden{display:none;}
+.imported-file-info{margin-top:12px;padding:10px 14px;background:var(--green-bg);border-radius:6px;border:1px solid rgba(76,175,125,0.25);font-size:12px;color:var(--green);display:none;}
+
+/* Data preview table in settings */
+.data-preview{margin-top:1rem;overflow-x:auto;}
+.data-preview table{width:100%;border-collapse:collapse;font-size:12px;}
+.data-preview th{background:var(--surface2);color:var(--text3);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.data-preview td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text2);}
+.data-preview td.has-val{color:var(--green);}
+.data-preview tr:last-child td{border-bottom:none;}
+.data-preview input.actual-input{
+  width:100%;background:transparent;border:1px solid var(--border2);
+  border-radius:4px;padding:4px 7px;font-size:12px;color:var(--text);
+  font-family:var(--mono);outline:none;transition:border-color 0.15s,box-shadow 0.15s;
+}
+.data-preview input.actual-input:focus{
+  border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,184,75,0.12);
+}
+.data-preview input.actual-input::placeholder{color:var(--text3);}
+.data-preview input.actual-input.has-val{color:var(--green);}
+
+/* ── METRICS ── */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:1.75rem;}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;position:relative;overflow:hidden;transition:border-color 0.2s;}
+.metric-card:hover{border-color:var(--border2);}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);opacity:0.5;}
+.metric-card.green::before{background:var(--green);}
+.metric-card.red::before{background:var(--red);}
+.metric-card.blue::before{background:var(--blue);}
+.metric-label{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
+.metric-value{font-family:var(--display);font-size:24px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px;}
+.metric-sub{font-size:11px;color:var(--text2);}
+
+/* ── PROGRESS ── */
+.progress-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:1.75rem;}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.progress-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);}
+.progress-pct{font-family:var(--display);font-size:18px;font-weight:700;color:var(--accent);}
+.progress-track{background:rgba(255,255,255,0.05);border-radius:3px;height:6px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;transition:width 0.6s cubic-bezier(.4,0,.2,1);}
+
+/* ── CHART ── */
+.chart-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:1.75rem;}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:8px;}
+.chart-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);}
+.chart-legend{display:flex;gap:16px;font-size:11px;color:var(--text2);}
+.legend-item{display:flex;align-items:center;gap:6px;}
+
+/* ── TABLE ── */
+.table-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.75rem;}
+.table-header-bar{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
+.table-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);}
+table{width:100%;border-collapse:collapse;}
+thead th{background:var(--surface2);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:rgba(255,255,255,0.02);}
+tbody tr.row-active{background:rgba(91,156,246,0.05);}
+tbody tr.row-hit{background:rgba(76,175,125,0.05);}
+tbody tr.row-miss{background:rgba(224,92,92,0.05);}
+td{padding:8px 12px;color:var(--text);vertical-align:middle;font-size:12px;}
+td.num{font-variant-numeric:tabular-nums;}
+td.date-cell{font-size:11px;color:var(--text2);}
+.date-range{display:flex;flex-direction:column;gap:1px;}
+.date-start{color:var(--text);font-size:11px;}
+.date-end{color:var(--text3);font-size:10px;}
+.week-label{font-family:var(--display);font-size:13px;font-weight:600;color:var(--text2);}
+.week-label.active-wk{color:var(--blue);}
+.deadline-pill{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;margin-top:3px;letter-spacing:0.05em;text-transform:uppercase;}
+.deadline-past{background:rgba(224,92,92,0.15);color:var(--red);}
+.deadline-today{background:rgba(232,184,75,0.15);color:var(--accent);}
+.deadline-soon{background:rgba(91,156,246,0.12);color:var(--blue);}
+.deadline-future{background:rgba(255,255,255,0.04);color:var(--text3);}
+.actual-val{font-variant-numeric:tabular-nums;color:var(--text);}
+.actual-empty{color:var(--text3);font-size:11px;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;}
+.badge-pending{background:rgba(255,255,255,0.05);color:var(--text3);}
+.badge-active{background:var(--blue-bg);color:var(--blue);}
+.badge-hit{background:var(--green-bg);color:var(--green);}
+.badge-miss{background:var(--red-bg);color:var(--red);}
+.vs-positive{color:var(--green);}
+.vs-negative{color:var(--red);}
+.vs-neutral{color:var(--text3);}
+
+/* Dashboard export bar */
+.dash-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.5rem;align-items:center;}
+.dash-actions-label{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);margin-right:4px;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--text);z-index:999;transform:translateY(20px);opacity:0;transition:all 0.25s;pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+
+.footer-note{text-align:center;font-size:11px;color:var(--text3);margin-top:1rem;letter-spacing:0.04em;}
+@media(max-width:780px){.rate-col{display:none;}}
+</style>
+</head>
+<body>
+
+<!-- TAB NAV -->
+<div class="tab-nav">
+  <div class="tab-nav-inner">
+    <button class="tab-btn active" onclick="switchTab('settings',this)">⚙ Settings</button>
+    <button class="tab-btn" onclick="switchTab('dashboard',this)">📊 Dashboard</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ════════════════════════════════════════
+       SETTINGS TAB
+  ════════════════════════════════════════ -->
+  <div id="tab-settings" class="tab-pane active">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-brand">
+        <div class="logo-circle" onclick="document.getElementById('logoFileInput').click()" title="Click to upload logo">
+          <div id="logoSmall" class="logo-placeholder">Upload<br>Logo</div>
+        </div>
+        <div>
+          <div class="eyebrow">&#9679; Configuration</div>
+          <h1>Road to <span>Mil</span></h1>
+          <div class="subtitle">Set up your trading journey &nbsp;·&nbsp; <span id="profileBadgeSettings" style="color:var(--accent);font-weight:600;"></span></div>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="logoFileInput" accept="image/*" onchange="handleLogoUpload(this)">
+
+    <!-- Profile / Exchange -->
+    <div class="settings-card" style="margin-bottom:1.5rem;">
+      <div class="settings-label"><span>🏦</span> This Tracker / Exchange</div>
+      <div class="field-group">
+        <div class="field-row">
+          <span class="field-label">Display name</span>
+          <input type="text" id="profileNameInput" placeholder="e.g. Pionex, Binance, Bybit" oninput="handleProfileNameInput(this.value)" style="max-width:240px;">
+        </div>
+      </div>
+      <div id="profileFolderInfo" style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;"></div>
+    </div>
+
+    <div class="settings-grid">
+
+      <!-- Date Settings -->
+      <div class="settings-card">
+        <div class="settings-label"><span>📅</span> Journey Start Date</div>
+        <div class="field-group">
+          <div class="field-row">
+            <span class="field-label">Start date</span>
+            <input type="date" id="startDateInput" oninput="handleDateChange(this.value)" style="max-width:200px;">
+          </div>
+        </div>
+        <div class="date-calc-display" id="dateCalcDisplay">
+          <div class="date-calc-row"><span class="dcl">Week 1 starts</span><span class="dcv" id="dc-w1">—</span></div>
+          <div class="date-calc-row"><span class="dcl">Week 15 ends</span><span class="dcv accent" id="dc-w15">—</span></div>
+          <div class="date-calc-row"><span class="dcl">Total duration</span><span class="dcv" id="dc-dur">—</span></div>
+          <div class="date-calc-row"><span class="dcl">Days remaining</span><span class="dcv" id="dc-rem">—</span></div>
+        </div>
+      </div>
+
+      <!-- Logo Upload -->
+      <div class="settings-card">
+        <div class="settings-label"><span>🖼</span> Exchange / Brand Logo</div>
+        <div class="logo-upload-area">
+          <div class="logo-preview-big" id="logoBigPreview">
+            <div class="lp-placeholder">No logo<br>uploaded</div>
+          </div>
+          <div class="logo-upload-info">
+            <p>Upload your exchange or personal brand logo. It will appear beside the title on both tabs.</p>
+            <button class="btn btn-outline" onclick="document.getElementById('logoFileInput').click()">&#8593; Choose image</button>
+            <button class="btn btn-outline" id="removeLogoBtn" onclick="removeLogo()" style="display:none;margin-top:6px;">&#10006; Remove</button>
+            <div class="logo-name" id="logoName"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Import -->
+      <div class="settings-card">
+        <div class="settings-label"><span>📥</span> Import Results (CSV / Excel)</div>
+        <div class="drop-area" id="dropArea" onclick="document.getElementById('importFileHidden').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <div class="drop-area-icon">📂</div>
+          <div class="drop-area-text">Click to select or drag & drop file</div>
+          <div class="drop-area-sub">Supports .csv and .xlsx — reads "Actual (USD)" column</div>
+        </div>
+        <input type="file" id="importFileHidden" accept=".csv,.xlsx,.xls" onchange="handleImportFile(this)">
+        <div class="imported-file-info" id="importedInfo"></div>
+        <div style="margin-top:14px;margin-bottom:4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);">Weekly actuals — edit directly below</div>
+        <div class="data-preview" id="dataPreview"></div>
+      </div>
+
+      <!-- Export -->
+      <div class="settings-card">
+        <div class="settings-label"><span>📤</span> Export Data</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button class="btn btn-outline btn-lg" onclick="exportCSV()" style="width:100%;justify-content:center;">&#8595; Download CSV</button>
+          <button class="btn btn-outline btn-lg" onclick="exportExcel()" style="width:100%;justify-content:center;">&#8595; Download Excel (.xlsx)</button>
+          <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+          <!-- CLOUD SYNC -->
+          <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);">&#9729; Cloud Sync (Netlify)</div>
+          <div id="backupStatus" style="font-size:11px;color:var(--text2);line-height:1.6;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;">Checking cloud connection…</div>
+          <div class="field-row" style="gap:8px;">
+            <button class="btn btn-outline" onclick="manualSyncNow()" style="flex:1;justify-content:center;">&#8593; Sync Now</button>
+            <button class="btn btn-outline" onclick="reloadFromCloud()" style="flex:1;justify-content:center;">&#8595; Reload From Cloud</button>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Sync passcode</span>
+            <input type="password" id="syncSecretInput" placeholder="only if RTM_SECRET is set" oninput="handleSyncSecretInput(this.value)" style="max-width:200px;">
+          </div>
+          <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+          <p style="font-size:11px;color:var(--text3);line-height:1.6;">Exports include week dates, targets (USD), actuals, return %, and status for all 15 weeks.</p>
+          <button class="btn btn-accent btn-lg" onclick="saveAll()" style="width:100%;justify-content:center;">&#10003; Save All Settings</button>
+          <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+          <button class="btn btn-danger btn-lg" onclick="resetAll()" style="width:100%;justify-content:center;">&#8856; Reset Everything</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer-note">Data auto-saves to this browser and syncs to the cloud (Netlify Blobs) &bull; Import reads "Actual (USD)" column from your file &bull; Switch to Dashboard tab to view your progress</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       DASHBOARD TAB
+  ════════════════════════════════════════ -->
+  <div id="tab-dashboard" class="tab-pane">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-brand">
+        <div class="logo-circle" id="logoDashCircle" onclick="switchTab('settings',document.querySelector('.tab-btn'))" title="Go to Settings to change logo">
+          <div id="logoDash" class="logo-placeholder" style="font-size:8px;">Change<br>in Settings</div>
+        </div>
+        <div>
+          <div class="eyebrow">&#9679; Live Tracker</div>
+          <h1>Road to <span>Mil</span></h1>
+          <div class="subtitle" id="subtitle">2026 Trading Journey &nbsp;·&nbsp; <span id="profileBadgeDash" style="color:var(--accent);font-weight:600;"></span></div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="dash-actions-label">Export</div>
+        <button class="btn btn-blue" onclick="exportDashboardHTML()">&#8595; Save Dashboard HTML</button>
+        <button class="btn btn-blue" onclick="exportDashboardJPEG()">&#8595; Save Dashboard JPEG</button>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="metrics">
+      <div class="metric-card blue">
+        <div class="metric-label">Current Week</div>
+        <div class="metric-value" id="m-week">W1</div>
+        <div class="metric-sub" id="m-start">Start: $100</div>
+      </div>
+      <div class="metric-card" id="mc-target">
+        <div class="metric-label">This Week's Target</div>
+        <div class="metric-value" id="m-target">$200</div>
+        
+      </div>
+      <div class="metric-card" id="mc-actual">
+        <div class="metric-label">Actual (USD)</div>
+        <div class="metric-value" id="m-actual">&mdash;</div>
+        
+      </div>
+      <div class="metric-card" id="mc-rate">
+        <div class="metric-label">Return Rate</div>
+        <div class="metric-value" id="m-rate">&mdash;</div>
+        <div class="metric-sub">Target: 100% gain</div>
+      </div>
+      <div class="metric-card" id="mc-weeks">
+        <div class="metric-label">Weeks Completed</div>
+        <div class="metric-value" id="m-weeks">0</div>
+        <div class="metric-sub">of 15 total</div>
+      </div>
+      <div class="metric-card" id="mc-deadline">
+        <div class="metric-label">Journey End Date</div>
+        <div class="metric-value" id="m-deadline" style="font-size:18px;">&mdash;</div>
+        <div class="metric-sub" id="m-deadline-sub">Set start date in Settings</div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section">
+      <div class="progress-header">
+        <div class="progress-title">Journey to $3,276,800 &mdash; Overall Progress</div>
+        <div class="progress-pct" id="prog-pct">0.00%</div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="prog-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-section">
+      <div class="chart-header">
+        <div class="chart-title">Target vs Actual Growth (USD &mdash; Log Scale)</div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div style="width:20px;height:2px;border-top:2px dashed #4a4845;"></div>
+            Target
+          </div>
+          <div class="legend-item">
+            <div style="width:8px;height:8px;border-radius:2px;background:#e8b84b;"></div>
+            Actual
+          </div>
+        </div>
+      </div>
+      <div style="position:relative;width:100%;height:240px;">
+        <canvas id="chart" role="img" aria-label="Line chart of 15-week trading journey target vs actual USD on log scale">Weekly target vs actual USD progress over 15 weeks.</canvas>
+      </div>
+    </div>
+
+    <!-- Table (read-only) -->
+    <div class="table-section">
+      <div class="table-header-bar">
+        <div class="table-title">Weekly Progress — read-only · Import results in Settings tab</div>
+        <div style="font-size:11px;color:var(--text3);">Actuals loaded via import</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:55px;">Week</th>
+              <th style="width:130px;" class="date-col">Date Range</th>
+              <th style="width:95px;">Start ($)</th>
+              <th style="width:105px;">Target ($)</th>
+              <th style="width:115px;">Actual ($)</th>
+              <th style="width:100px;">vs Target</th>
+              <th style="width:80px;" class="rate-col">Return %</th>
+              <th style="width:80px;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer-note">Dashboard is read-only &bull; Import data via Settings tab &bull; Use "Save Dashboard HTML" to export a standalone snapshot</div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   DATA
+══════════════════════════════════════════════ */
+const WEEKS=[
+  {week:1, start:100,     target:200},
+  {week:2, start:200,     target:400},
+  {week:3, start:400,     target:800},
+  {week:4, start:800,     target:1600},
+  {week:5, start:1600,    target:3200},
+  {week:6, start:3200,    target:6400},
+  {week:7, start:6400,    target:12800},
+  {week:8, start:12800,   target:25600},
+  {week:9, start:25600,   target:51200},
+  {week:10,start:51200,   target:102400},
+  {week:11,start:102400,  target:204800},
+  {week:12,start:204800,  target:409600},
+  {week:13,start:409600,  target:819200},
+  {week:14,start:819200,  target:1638400},
+  {week:15,start:1638400, target:3276800},
+];
+/* ══════════════════════════════════════════════
+   TRACKER LABEL / LOCAL CACHE KEY
+   Each Netlify deployment (site) is now its own isolated
+   tracker — Netlify Blobs storage is automatically scoped
+   per site, so there's no more folder-hash trick needed.
+   To track another exchange, deploy another copy of this
+   project as a separate Netlify site (see README).
+══════════════════════════════════════════════ */
+const LS_KEY = 'rtm_v5';                 // local browser cache (instant UI + offline fallback)
+const DEFAULT_TRACKER_LABEL = 'Tracker'; // shown when no display name is set
+let   profileLabel = '';                 // shown in UI
+
+function handleProfileNameInput(val){
+  profileLabel=(val||'').trim();
+  saveAll();
+  updateProfileUI();
+}
+function updateProfileUI(){
+  const name=profileLabel||DEFAULT_TRACKER_LABEL;
+  const bS=document.getElementById('profileBadgeSettings');
+  const bD=document.getElementById('profileBadgeDash');
+  if(bS) bS.textContent='Tracking: '+name;
+  if(bD) bD.textContent=name;
+  const inp=document.getElementById('profileNameInput');
+  if(inp && document.activeElement!==inp) inp.value=profileLabel||'';
+  const info=document.getElementById('profileFolderInfo');
+  if(info){
+    info.innerHTML='This deployed site is its own independent tracker — its data lives in this site\'s '+
+      '<b style="color:var(--text)">Netlify Blobs</b> storage plus a local browser cache. '+
+      'To track another exchange, deploy another copy of this project as a separate Netlify site '+
+      '(e.g. <b style="color:var(--text)">Binance</b>, <b style="color:var(--text)">Bybit</b>) — see the README.';
+  }
+}
+
+let actuals={};
+let startDate=null;
+let logoDataURL=null;
+
+/* ══════════════════════════════════════════════
+   TABS
+══════════════════════════════════════════════ */
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  // find the correct button
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    if(b.textContent.toLowerCase().includes(name.substring(0,4)))b.classList.add('active');
+  });
+  if(name==='dashboard') renderAll();
+}
+
+/* ══════════════════════════════════════════════
+   DATE HELPERS
+══════════════════════════════════════════════ */
+function parseLocalDate(s){if(!s)return null;const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function toDateStr(d){if(!d)return'';return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(d,yr){if(!d)return'—';const s=d.getDate()+' '+MONTHS[d.getMonth()];return yr?s+' '+d.getFullYear():s;}
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+function weekStart(n){if(!startDate)return null;return addDays(startDate,(n-1)*7);}
+function weekEnd(n){if(!startDate)return null;return addDays(startDate,(n-1)*7+6);}
+function daysFromToday(d){const t=new Date();t.setHours(0,0,0,0);return Math.round((d-t)/86400000);}
+
+function deadlinePill(endDate){
+  if(!endDate)return'';
+  const diff=daysFromToday(endDate);
+  if(diff<0)  return`<div class="deadline-pill deadline-past">ended ${Math.abs(diff)}d ago</div>`;
+  if(diff===0)return`<div class="deadline-pill deadline-today">ends today</div>`;
+  if(diff<=3) return`<div class="deadline-pill deadline-soon">${diff}d left</div>`;
+  return`<div class="deadline-pill deadline-future">${diff}d left</div>`;
+}
+
+/* ══════════════════════════════════════════════
+   STORAGE
+══════════════════════════════════════════════ */
+function loadLS(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    actuals=raw.actuals||{};
+    startDate=raw.startDate?parseLocalDate(raw.startDate):null;
+    logoDataURL=raw.logoDataURL||null;
+    profileLabel=raw.profileLabel||'';
+    if(startDate) document.getElementById('startDateInput').value=raw.startDate;
+    if(logoDataURL) applyLogo(logoDataURL,raw.logoName||'');
+  }catch(e){actuals={};startDate=null;logoDataURL=null;profileLabel='';}
+  updateProfileUI();
+}
+function currentStatePayload(){
+  return {actuals, startDate:toDateStr(startDate), logoDataURL, logoName:currentLogoName, profileLabel};
+}
+function saveAll(){
+  localStorage.setItem(LS_KEY,JSON.stringify(currentStatePayload()));
+  showToast('✓ Saved');
+  scheduleCloudSync();   // push the update to Netlify Blobs
+}
+
+/* ══════════════════════════════════════════════
+   LOGO
+══════════════════════════════════════════════ */
+let currentLogoName='';
+function handleLogoUpload(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    logoDataURL=e.target.result;
+    currentLogoName=file.name;
+    applyLogo(logoDataURL,file.name);
+    saveAll();
+    showToast('✓ Logo uploaded');
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+function applyLogo(dataURL,name){
+  // Small (header circles)
+  ['logoSmall','logoDash'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.parentElement.innerHTML=`<img src="${dataURL}" alt="logo">`;
+  });
+  // Big preview
+  const big=document.getElementById('logoBigPreview');
+  if(big) big.innerHTML=`<img src="${dataURL}" alt="logo">`;
+  // Name + remove btn
+  const nm=document.getElementById('logoName');
+  if(nm) nm.textContent=name;
+  const rb=document.getElementById('removeLogoBtn');
+  if(rb) rb.style.display='inline-flex';
+}
+function removeLogo(){
+  logoDataURL=null; currentLogoName='';
+  ['logoSmall','logoDash'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.parentElement.innerHTML=`<div id="${id}" class="logo-placeholder" style="font-size:8px;">${id==='logoDash'?'Change<br>in Settings':'Upload<br>Logo'}</div>`;
+  });
+  const big=document.getElementById('logoBigPreview');
+  if(big) big.innerHTML=`<div class="lp-placeholder">No logo<br>uploaded</div>`;
+  const nm=document.getElementById('logoName'); if(nm) nm.textContent='';
+  const rb=document.getElementById('removeLogoBtn'); if(rb) rb.style.display='none';
+  saveAll(); showToast('✓ Logo removed');
+}
+
+/* ══════════════════════════════════════════════
+   DATE CHANGE
+══════════════════════════════════════════════ */
+function handleDateChange(val){
+  startDate=val?parseLocalDate(val):null;
+  updateDateCalc();
+  saveAll();
+}
+function updateDateCalc(){
+  const w1s=weekStart(1), w15e=weekEnd(15);
+  document.getElementById('dc-w1').textContent  = w1s  ? fmtDate(w1s,true)  : '—';
+  document.getElementById('dc-w15').textContent = w15e ? fmtDate(w15e,true) : '—';
+  if(w1s&&w15e){
+    const total=Math.ceil((w15e-w1s)/86400000)+1;
+    const rem=daysFromToday(w15e);
+    document.getElementById('dc-dur').textContent=total+' days';
+    document.getElementById('dc-rem').textContent=rem>=0?rem+' days':'Journey ended';
+  } else {
+    document.getElementById('dc-dur').textContent='—';
+    document.getElementById('dc-rem').textContent='—';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   IMPORT (drag & drop + click)
+══════════════════════════════════════════════ */
+function handleDragOver(e){e.preventDefault();document.getElementById('dropArea').classList.add('drag-over');}
+function handleDragLeave(e){document.getElementById('dropArea').classList.remove('drag-over');}
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('dropArea').classList.remove('drag-over');
+  const file=e.dataTransfer.files[0];
+  if(file) processImportFile(file);
+}
+function handleImportFile(input){
+  const file=input.files[0];
+  if(file) processImportFile(file);
+  input.value='';
+}
+function processImportFile(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    const r=new FileReader();
+    r.onload=e=>{parseCSVData(e.target.result);showImportSuccess(file.name);renderDataPreview();};
+    r.readAsText(file);
+  } else if(ext==='xlsx'||ext==='xls'){
+    const r=new FileReader();
+    r.onload=e=>{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      parseImportRows(data);
+      showImportSuccess(file.name);
+      renderDataPreview();
+    };
+    r.readAsArrayBuffer(file);
+  } else { showToast('⚠ Unsupported file type'); }
+}
+function showImportSuccess(name){
+  const el=document.getElementById('importedInfo');
+  el.style.display='block';
+  const cnt=Object.keys(actuals).length;
+  el.textContent=`✓ Imported "${name}" — ${cnt} week${cnt!==1?'s':''} with actuals loaded`;
+  showToast('✓ Import successful');
+}
+function parseCSVData(text){
+  const lines=text.trim().split('\n').map(l=>l.split(',').map(c=>c.replace(/^"|"$/g,'').trim()));
+  parseImportRows(lines);
+}
+function parseImportRows(rows){
+  let headerIdx=-1,actualCol=-1,startDateCol=-1;
+  for(let i=0;i<rows.length;i++){
+    const row=rows[i];
+    for(let j=0;j<row.length;j++){
+      const cell=String(row[j]).toLowerCase().trim();
+      if(cell==='actual (usd)'){headerIdx=i;actualCol=j;}
+      if(cell==='week start') startDateCol=j;
+    }
+    if(headerIdx>=0)break;
+  }
+  if(actualCol<0){showToast('⚠ Could not find "Actual (USD)" column');return;}
+  if(startDateCol>=0&&rows[headerIdx+1]){
+    const ds=String(rows[headerIdx+1][startDateCol]).trim();
+    if(ds&&ds.match(/^\d{4}-\d{2}-\d{2}$/)){
+      startDate=parseLocalDate(ds);
+      document.getElementById('startDateInput').value=ds;
+      updateDateCalc();
+    }
+  }
+  for(let i=headerIdx+1;i<rows.length;i++){
+    const row=rows[i];
+    const match=String(row[0]||'').match(/\d+/);
+    if(!match)continue;
+    const wn=parseInt(match[0]);
+    if(wn<1||wn>15)continue;
+    const val=parseFloat(String(row[actualCol]).replace(/[^0-9.-]/g,''));
+    if(!isNaN(val)&&val>0)actuals[wn]=val;
+  }
+  saveAll();
+}
+
+function renderDataPreview(){
+  const container=document.getElementById('dataPreview');
+  let rows='';
+  WEEKS.forEach(w=>{
+    const raw=actuals[w.week];
+    const hasVal=raw!=null&&raw!=='';
+    const val=hasVal?parseFloat(raw):'';
+    rows+=`<tr>
+      <td>W${w.week}</td>
+      <td style="color:var(--text2)">${fmtUSD(w.target)}</td>
+      <td>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          class="actual-input${hasVal?' has-val':''}"
+          placeholder="Enter $"
+          value="${hasVal?val:''}"
+          data-week="${w.week}"
+          onchange="handleActualInput(this)"
+          oninput="this.className='actual-input'+(this.value?' has-val':'')"
+        >
+      </td>
+    </tr>`;
+  });
+  container.innerHTML=`<table>
+    <thead><tr><th>Week</th><th>Target ($)</th><th>Actual ($) — editable</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function handleActualInput(el){
+  const wn=parseInt(el.dataset.week);
+  const val=el.value.trim();
+  if(val===''||isNaN(parseFloat(val))||parseFloat(val)<=0){
+    delete actuals[wn];
+    el.className='actual-input';
+  } else {
+    actuals[wn]=parseFloat(val);
+    el.className='actual-input has-val';
+  }
+  saveAll();
+  // Re-render dashboard if it's visible
+  const dash=document.getElementById('tab-dashboard');
+  if(dash&&dash.classList.contains('active')) renderAll();
+}
+
+/* ══════════════════════════════════════════════
+   FORMATTING
+══════════════════════════════════════════════ */
+function fmtUSD(n){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  if(Math.abs(n)>=1e6)return'$'+(n/1e6).toFixed(2)+'M';
+  if(Math.abs(n)>=1e3)return'$'+(n/1e3).toFixed(1)+'K';
+  return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2});
+}
+function fmtPct(n){return n.toFixed(1)+'%';}
+
+/* ══════════════════════════════════════════════
+   DERIVED STATE
+══════════════════════════════════════════════ */
+function getCurrentWeek(){
+  for(let i=0;i<WEEKS.length;i++){
+    if(actuals[WEEKS[i].week]==null||actuals[WEEKS[i].week]==='')return WEEKS[i].week;
+  }
+  return 15;
+}
+function getStats(){
+  const done=WEEKS.filter(w=>actuals[w.week]!=null&&actuals[w.week]!=='');
+  const doneCount=done.length;
+  const curWeek=getCurrentWeek();
+  const curData=WEEKS[curWeek-1];
+  // curActual: actual for the active week if entered, else the last completed week
+  const curActual=actuals[curWeek]!=null&&actuals[curWeek]!==''
+    ? parseFloat(actuals[curWeek])
+    : done.length>0 ? parseFloat(actuals[done[done.length-1].week]) : null;
+  // lastDoneData: the week data for whichever week curActual belongs to
+  const lastDoneWeek=actuals[curWeek]!=null&&actuals[curWeek]!==''
+    ? curData
+    : done.length>0 ? done[done.length-1] : curData;
+  let bestWeek=null,bestRate=-Infinity;
+  done.forEach(w=>{const a=parseFloat(actuals[w.week]);const r=(a/w.start)*100;if(r>bestRate){bestRate=r;bestWeek=w.week;}});
+  const maxActual=doneCount>0?Math.max(...done.map(w=>parseFloat(actuals[w.week]))):0;
+  return{done,doneCount,curWeek,curData,curActual,lastDoneWeek,bestWeek,bestRate,maxActual};
+}
+
+/* ══════════════════════════════════════════════
+   RENDER METRICS
+══════════════════════════════════════════════ */
+function renderMetrics(){
+  const s=getStats();
+  document.getElementById('m-week').textContent='W'+s.curWeek;
+  document.getElementById('m-start').textContent='Start: '+fmtUSD(s.curData.start);
+  document.getElementById('m-target').textContent=fmtUSD(s.curData.target);
+  if(s.curActual!==null){
+    document.getElementById('m-actual').textContent=fmtUSD(s.curActual);
+    document.getElementById('mc-actual').className='metric-card '+(s.curActual>=s.lastDoneWeek.target?'green':'red');
+    const rate=((s.curActual-s.lastDoneWeek.start)/s.lastDoneWeek.start)*100;
+    document.getElementById('m-rate').textContent=fmtPct(rate);
+    document.getElementById('mc-rate').className='metric-card '+(rate>=100?'green':'red');
+  } else {
+    document.getElementById('m-actual').textContent='—';
+    document.getElementById('mc-actual').className='metric-card';
+    document.getElementById('m-rate').textContent='—';
+    document.getElementById('mc-rate').className='metric-card';
+  }
+  document.getElementById('m-weeks').textContent=s.doneCount;
+  const endDate=weekEnd(15);
+  if(endDate){
+    document.getElementById('m-deadline').textContent=fmtDate(endDate,false)+' \''+String(endDate.getFullYear()).slice(2);
+    const dLeft=daysFromToday(endDate);
+    document.getElementById('m-deadline-sub').textContent=dLeft>=0?dLeft+' days remaining':'Journey completed';
+    document.getElementById('mc-deadline').className='metric-card '+(dLeft<0?'green':dLeft<=7?'red':'');
+  } else {
+    document.getElementById('m-deadline').textContent='—';
+    document.getElementById('m-deadline-sub').textContent='Set start date in Settings';
+    document.getElementById('mc-deadline').className='metric-card';
+  }
+  const pct=Math.min(100,(s.maxActual/3276800)*100);
+  document.getElementById('prog-pct').textContent=pct.toFixed(2)+'%';
+  document.getElementById('prog-fill').style.width=pct+'%';
+  const sub=document.getElementById('subtitle');
+  if(startDate&&weekEnd(15)){
+    sub.textContent='2026 Trading Journey — '+fmtDate(startDate,true)+' to '+fmtDate(weekEnd(15),true);
+  } else {
+    sub.textContent='2026 Trading Journey';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   RENDER TABLE (read-only)
+══════════════════════════════════════════════ */
+function renderTable(){
+  const s=getStats();
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  WEEKS.forEach(w=>{
+    const raw=actuals[w.week];
+    const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const isDone=actual!==null;
+    const isCur=w.week===s.curWeek&&!isDone;
+    const hit=isDone&&actual>=w.target;
+    const miss=isDone&&!hit;
+    const vsTarget=isDone?(actual-w.target):null;
+    const returnRate=isDone?((actual-w.start)/w.start*100):null;
+    let rowClass=isCur?'row-active':hit?'row-hit':miss?'row-miss':'';
+    let badge=isCur?'<span class="badge badge-active">&#9654; Active</span>':
+              hit?'<span class="badge badge-hit">&#10003; Hit</span>':
+              miss?'<span class="badge badge-miss">&#10007; Miss</span>':
+              '<span class="badge badge-pending">&bull; Pending</span>';
+    let vsHtml=isDone?`<span class="${vsTarget>=0?'vs-positive':'vs-negative'}">${vsTarget>=0?'+':''}${fmtUSD(vsTarget)}</span>`:'<span class="vs-neutral">—</span>';
+    let rateHtml=isDone?`<span class="${returnRate>=100?'vs-positive':'vs-negative'}">${fmtPct(returnRate)}</span>`:'<span class="vs-neutral">—</span>';
+    const ws=weekStart(w.week),we=weekEnd(w.week);
+    let dateHtml='<span style="color:var(--text3);font-size:11px;">—</span>';
+    if(ws&&we) dateHtml=`<div class="date-range"><span class="date-start">${fmtDate(ws)} &ndash; ${fmtDate(we)}</span>${!isDone?deadlinePill(we):''}</div>`;
+    const actualHtml=isDone?`<span class="actual-val">${fmtUSD(actual)}</span>`:'<span class="actual-empty">no data</span>';
+    tbody.innerHTML+=`<tr class="${rowClass}">
+      <td><span class="week-label ${isCur?'active-wk':''}">W${w.week}</span></td>
+      <td class="date-cell">${dateHtml}</td>
+      <td class="num">${fmtUSD(w.start)}</td>
+      <td class="num">${fmtUSD(w.target)}</td>
+      <td class="num">${actualHtml}</td>
+      <td class="num">${vsHtml}</td>
+      <td class="num rate-col">${rateHtml}</td>
+      <td>${badge}</td>
+    </tr>`;
+  });
+}
+
+/* ══════════════════════════════════════════════
+   CHART
+══════════════════════════════════════════════ */
+let chartInst;
+function renderChart(){
+  const labels=WEEKS.map(w=>startDate?fmtDate(weekStart(w.week)):'W'+w.week);
+  const targets=WEEKS.map(w=>w.target);
+  const actualData=WEEKS.map(w=>{const v=actuals[w.week];return(v!=null&&v!=='')?parseFloat(v):null;});
+  const ctx=document.getElementById('chart');
+  if(chartInst)chartInst.destroy();
+  chartInst=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Target ($)',data:targets,borderColor:'#4a4845',borderWidth:1.5,borderDash:[5,4],pointRadius:2,pointBackgroundColor:'#4a4845',fill:false,tension:0.3,spanGaps:true},
+        {label:'Actual ($)',data:actualData,borderColor:'#e8b84b',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#e8b84b',pointBorderColor:'#0b0c0f',pointBorderWidth:1.5,fill:false,tension:0.3,spanGaps:false}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:350},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#1a1d24',borderColor:'#2a2d34',borderWidth:1,
+          titleColor:'#8a8680',bodyColor:'#f0ede8',
+          titleFont:{family:'DM Mono',size:10},bodyFont:{family:'DM Mono',size:12},
+          callbacks:{
+            title:items=>{
+              const idx=items[0].dataIndex;const w=WEEKS[idx];
+              const ws=weekStart(w.week);const we=weekEnd(w.week);
+              return'W'+w.week+(ws?' · '+fmtDate(ws)+' – '+fmtDate(we):'');
+            },
+            label:ctx=>{
+              if(ctx.parsed.y===null)return null;
+              const v=ctx.parsed.y;
+              return ctx.dataset.label.split(' ')[0]+': '+(v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toLocaleString());
+            }
+          }
+        }
+      },
+      scales:{
+        y:{type:'logarithmic',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4a4845',font:{family:'DM Mono',size:10},callback:v=>v>=1e6?'$'+(v/1e6)+'M':v>=1e3?'$'+(v/1e3)+'K':'$'+v}},
+        x:{grid:{display:false},ticks:{color:'#4a4845',font:{family:'DM Mono',size:10},autoSkip:true,maxTicksLimit:15,maxRotation:30}}
+      }
+    }
+  });
+}
+
+function renderAll(){renderMetrics();renderTable();renderChart();}
+
+/* ══════════════════════════════════════════════
+   EXPORT CSV
+══════════════════════════════════════════════ */
+function exportCSV(){
+  const rows=[['Week','Week Start','Week End','Start (USD)','Target (USD)','Actual (USD)','vs Target (USD)','Return %','Status']];
+  WEEKS.forEach(w=>{
+    const raw=actuals[w.week];const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const isDone=actual!==null;const hit=isDone&&actual>=w.target;
+    const curW=getCurrentWeek();
+    const status=isDone?(hit?'Hit':'Miss'):(w.week===curW?'Active':'Pending');
+    const ws=weekStart(w.week);const we=weekEnd(w.week);
+    rows.push(['Week '+w.week,ws?toDateStr(ws):'',we?toDateStr(we):'',w.start,w.target,
+      isDone?actual:'',
+      isDone?parseFloat((actual-w.target).toFixed(2)):'',
+      isDone?parseFloat(((actual-w.start)/w.start*100).toFixed(2)):'',status]);
+  });
+  const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8;'}),'road_to_mil_'+dateStamp()+'.csv');
+  showToast('✓ CSV exported');
+}
+
+/* ══════════════════════════════════════════════
+   EXPORT EXCEL
+══════════════════════════════════════════════ */
+function exportExcel(){
+  const startStr=startDate?fmtDate(startDate,true):'Not set';
+  const endStr=weekEnd(15)?fmtDate(weekEnd(15),true):'Not set';
+  const ws_data=[
+    ['Road to Mil — Trading Journey 2026'],['Journey: '+startStr+' → '+endStr],[],
+    ['Week','Week Start','Week End','Start (USD)','Target (USD)','Actual (USD)','vs Target (USD)','Return %','Status']
+  ];
+  WEEKS.forEach(w=>{
+    const raw=actuals[w.week];const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const isDone=actual!==null;const hit=isDone&&actual>=w.target;
+    const curW=getCurrentWeek();
+    const status=isDone?(hit?'Hit':'Miss'):(w.week===curW?'Active':'Pending');
+    const ws=weekStart(w.week);const we=weekEnd(w.week);
+    ws_data.push(['Week '+w.week,ws?toDateStr(ws):'',we?toDateStr(we):'',w.start,w.target,
+      isDone?actual:'',
+      isDone?parseFloat((actual-w.target).toFixed(2)):'',
+      isDone?parseFloat(((actual-w.start)/w.start*100).toFixed(2)):'',status]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(ws_data);
+  ws['!cols']=[{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14},{wch:16},{wch:12},{wch:10}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Trading Log');
+  XLSX.writeFile(wb,'road_to_mil_'+dateStamp()+'.xlsx');
+  showToast('✓ Excel exported');
+}
+
+/* ══════════════════════════════════════════════
+   EXPORT DASHBOARD AS STANDALONE HTML
+══════════════════════════════════════════════ */
+function exportDashboardHTML(){
+  // Build all the week rows as static HTML
+  const s=getStats();
+  const endDate=weekEnd(15);
+
+  // Metric values
+  const mWeek='W'+s.curWeek;
+  const mStart='Start: '+fmtUSD(s.curData.start);
+  const mTarget=fmtUSD(s.curData.target);
+  const mActual=s.curActual!==null?fmtUSD(s.curActual):'—';
+  const mActualClass=s.curActual!==null?(s.curActual>=s.curData.target?'green':'red'):'';
+  const mRate=s.curActual!==null?fmtPct(((s.curActual-s.curData.start)/s.curData.start)*100):'—';
+  const mRateClass=s.curActual!==null?(((s.curActual-s.curData.start)/s.curData.start)*100>=100?'green':'red'):'';
+  const mWeeks=s.doneCount;
+  const mDeadline=endDate?fmtDate(endDate,false)+' \''+String(endDate.getFullYear()).slice(2):'—';
+  const mDeadlineSub=endDate?(daysFromToday(endDate)>=0?daysFromToday(endDate)+' days remaining':'Journey completed'):'Set start date in Settings';
+  const mDeadlineClass=endDate?(daysFromToday(endDate)<0?'green':daysFromToday(endDate)<=7?'red':''):'';
+  const pct=Math.min(100,(s.maxActual/3276800)*100);
+  const subtitleText=startDate&&weekEnd(15)?'2026 Trading Journey — '+fmtDate(startDate,true)+' to '+fmtDate(weekEnd(15),true):'2026 Trading Journey';
+
+  // Build rows
+  let rowsHTML='';
+  WEEKS.forEach(w=>{
+    const raw=actuals[w.week];const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const isDone=actual!==null;const isCur=w.week===s.curWeek&&!isDone;
+    const hit=isDone&&actual>=w.target;const miss=isDone&&!hit;
+    const vsTarget=isDone?(actual-w.target):null;
+    const returnRate=isDone?((actual-w.start)/w.start*100):null;
+    let rowClass=isCur?'row-active':hit?'row-hit':miss?'row-miss':'';
+    let badge=isCur?'<span class="badge badge-active">▶ Active</span>':
+              hit?'<span class="badge badge-hit">✓ Hit</span>':
+              miss?'<span class="badge badge-miss">✗ Miss</span>':
+              '<span class="badge badge-pending">• Pending</span>';
+    let vsHtml=isDone?`<span class="${vsTarget>=0?'vs-positive':'vs-negative'}">${vsTarget>=0?'+':''}${fmtUSD(vsTarget)}</span>`:'<span class="vs-neutral">—</span>';
+    let rateHtml=isDone?`<span class="${returnRate>=100?'vs-positive':'vs-negative'}">${fmtPct(returnRate)}</span>`:'<span class="vs-neutral">—</span>';
+    const ws=weekStart(w.week),we=weekEnd(w.week);
+    let dateHtml='<span style="color:#4a4845;font-size:11px;">—</span>';
+    if(ws&&we) dateHtml=`<div class="date-range"><span class="date-start">${fmtDate(ws)} – ${fmtDate(we)}</span>${!isDone?deadlinePill(we):''}</div>`;
+    const actualHtml=isDone?`<span class="actual-val">${fmtUSD(actual)}</span>`:'<span class="actual-empty">no data</span>';
+    rowsHTML+=`<tr class="${rowClass}">
+      <td><span class="week-label ${isCur?'active-wk':''}" >W${w.week}</span></td>
+      <td class="date-cell">${dateHtml}</td>
+      <td class="num">${fmtUSD(w.start)}</td>
+      <td class="num">${fmtUSD(w.target)}</td>
+      <td class="num">${actualHtml}</td>
+      <td class="num">${vsHtml}</td>
+      <td class="num rate-col">${rateHtml}</td>
+      <td>${badge}</td>
+    </tr>`;
+  });
+
+  // Chart data for embedded script
+  const chartTargets=JSON.stringify(WEEKS.map(w=>w.target));
+  const chartActuals=JSON.stringify(WEEKS.map(w=>{const v=actuals[w.week];return(v!=null&&v!=='')?parseFloat(v):null;}));
+  const chartLabels=JSON.stringify(WEEKS.map(w=>startDate?fmtDate(weekStart(w.week)):'W'+w.week));
+  const logoImg=logoDataURL?`<img src="${logoDataURL}" alt="logo" style="width:100%;height:100%;object-fit:cover;border-radius:11px;">`:'';
+
+  const now=new Date().toLocaleString();
+
+  const html=`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Road to Mil — Dashboard Snapshot ${dateStamp()}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"><\/script>
+<style>
+:root{--bg:#0b0c0f;--surface:#13151a;--surface2:#1a1d24;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--text:#f0ede8;--text2:#8a8680;--text3:#4a4845;--accent:#e8b84b;--accent2:#c49433;--green:#4caf7d;--green-bg:rgba(76,175,125,0.12);--red:#e05c5c;--red-bg:rgba(224,92,92,0.12);--blue:#5b9cf6;--blue-bg:rgba(91,156,246,0.12);--mono:'DM Mono',monospace;--display:'Syne',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(232,184,75,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,184,75,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.container{max-width:1180px;margin:0 auto;padding:2rem 1.5rem 4rem;position:relative;z-index:1;}
+.snapshot-bar{background:rgba(232,184,75,0.08);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:8px 16px;font-size:11px;color:var(--accent);margin-bottom:1.5rem;letter-spacing:0.05em;}
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:2rem;gap:1rem;flex-wrap:wrap;}
+.header-brand{display:flex;align-items:center;gap:16px;}
+.logo-circle{width:56px;height:56px;border-radius:12px;background:var(--surface2);border:1px solid var(--border2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.eyebrow{font-size:10px;letter-spacing:0.2em;color:var(--accent);text-transform:uppercase;margin-bottom:6px;}
+h1{font-family:var(--display);font-size:clamp(26px,4vw,44px);font-weight:800;color:var(--text);line-height:1.05;letter-spacing:-0.02em;}
+h1 span{color:var(--accent);}
+.subtitle{color:var(--text2);font-size:12px;margin-top:5px;}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:1.75rem;}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;position:relative;overflow:hidden;}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);opacity:0.5;}
+.metric-card.green::before{background:var(--green);}.metric-card.red::before{background:var(--red);}.metric-card.blue::before{background:var(--blue);}
+.metric-label{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
+.metric-value{font-family:var(--display);font-size:24px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px;}
+.metric-sub{font-size:11px;color:var(--text2);}
+.progress-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:1.75rem;}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.progress-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);}
+.progress-pct{font-family:var(--display);font-size:18px;font-weight:700;color:var(--accent);}
+.progress-track{background:rgba(255,255,255,0.05);border-radius:3px;height:6px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;}
+.chart-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:1.75rem;}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:8px;}
+.chart-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);}
+.chart-legend{display:flex;gap:16px;font-size:11px;color:var(--text2);}
+.legend-item{display:flex;align-items:center;gap:6px;}
+.table-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.75rem;}
+.table-header-bar{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid var(--border);}
+.table-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text3);}
+table{width:100%;border-collapse:collapse;}
+thead th{background:var(--surface2);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);}
+tbody tr:last-child{border-bottom:none;}
+tbody tr.row-active{background:rgba(91,156,246,0.05);}
+tbody tr.row-hit{background:rgba(76,175,125,0.05);}
+tbody tr.row-miss{background:rgba(224,92,92,0.05);}
+td{padding:8px 12px;color:var(--text);vertical-align:middle;font-size:12px;}
+td.num{font-variant-numeric:tabular-nums;}
+td.date-cell{font-size:11px;color:var(--text2);}
+.date-range{display:flex;flex-direction:column;gap:1px;}
+.date-start{color:var(--text);font-size:11px;}
+.week-label{font-family:var(--display);font-size:13px;font-weight:600;color:var(--text2);}
+.week-label.active-wk{color:var(--blue);}
+.deadline-pill{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;margin-top:3px;letter-spacing:0.05em;text-transform:uppercase;}
+.deadline-past{background:rgba(224,92,92,0.15);color:var(--red);}.deadline-today{background:rgba(232,184,75,0.15);color:var(--accent);}.deadline-soon{background:rgba(91,156,246,0.12);color:var(--blue);}.deadline-future{background:rgba(255,255,255,0.04);color:var(--text3);}
+.actual-val{font-variant-numeric:tabular-nums;color:var(--text);}
+.actual-empty{color:var(--text3);font-size:11px;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;}
+.badge-pending{background:rgba(255,255,255,0.05);color:var(--text3);}.badge-active{background:var(--blue-bg);color:var(--blue);}.badge-hit{background:var(--green-bg);color:var(--green);}.badge-miss{background:var(--red-bg);color:var(--red);}
+.vs-positive{color:var(--green);}.vs-negative{color:var(--red);}.vs-neutral{color:var(--text3);}
+.footer-note{text-align:center;font-size:11px;color:var(--text3);margin-top:1rem;}
+@media(max-width:780px){.rate-col{display:none;}}
+</style></head><body>
+<div class="container">
+<div class="snapshot-bar">📸 Dashboard snapshot exported ${now}</div>
+<div class="header">
+  <div class="header-brand">
+    <div class="logo-circle">${logoImg||'<span style="font-size:9px;color:#4a4845;text-align:center;padding:4px;">No logo</span>'}</div>
+    <div>
+      <div class="eyebrow">&#9679; Live Tracker</div>
+      <h1>Road to <span>Mil</span></h1>
+      <div class="subtitle">${subtitleText}</div>
+    </div>
+  </div>
+</div>
+<div class="metrics">
+  <div class="metric-card blue"><div class="metric-label">Current Week</div><div class="metric-value">${mWeek}</div><div class="metric-sub">${mStart}</div></div>
+  <div class="metric-card ${mActualClass}"><div class="metric-label">This Week's Target</div><div class="metric-value">${mTarget}</div><div class="metric-sub">&nbsp;</div></div>
+  <div class="metric-card ${mActualClass}"><div class="metric-label">Actual (USD)</div><div class="metric-value">${mActual}</div><div class="metric-sub">&nbsp;</div></div>
+  <div class="metric-card ${mRateClass}"><div class="metric-label">Return Rate</div><div class="metric-value">${mRate}</div><div class="metric-sub">Target: 100% gain</div></div>
+  <div class="metric-card"><div class="metric-label">Weeks Completed</div><div class="metric-value">${mWeeks}</div><div class="metric-sub">of 15 total</div></div>
+  <div class="metric-card ${mDeadlineClass}"><div class="metric-label">Journey End Date</div><div class="metric-value" style="font-size:18px;">${mDeadline}</div><div class="metric-sub">${mDeadlineSub}</div></div>
+</div>
+<div class="progress-section">
+  <div class="progress-header"><div class="progress-title">Journey to $3,276,800 — Overall Progress</div><div class="progress-pct">${pct.toFixed(2)}%</div></div>
+  <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+</div>
+<div class="chart-section">
+  <div class="chart-header">
+    <div class="chart-title">Target vs Actual Growth (USD — Log Scale)</div>
+    <div class="chart-legend">
+      <div class="legend-item"><div style="width:20px;height:2px;border-top:2px dashed #4a4845;"></div>Target</div>
+      <div class="legend-item"><div style="width:8px;height:8px;border-radius:2px;background:#e8b84b;"></div>Actual</div>
+    </div>
+  </div>
+  <div style="position:relative;width:100%;height:240px;"><canvas id="snapChart" role="img" aria-label="Trading journey progress chart"></canvas></div>
+</div>
+<div class="table-section">
+  <div class="table-header-bar"><div class="table-title">Weekly Progress — Snapshot</div><div style="font-size:11px;color:var(--text3);">${now}</div></div>
+  <div style="overflow-x:auto;"><table>
+    <thead><tr>
+      <th style="width:55px;">Week</th><th style="width:130px;">Date Range</th>
+      <th style="width:95px;">Start ($)</th><th style="width:105px;">Target ($)</th>
+      <th style="width:115px;">Actual ($)</th>
+      <th style="width:100px;">vs Target</th><th style="width:80px;" class="rate-col">Return %</th><th style="width:80px;">Status</th>
+    </tr></thead>
+    <tbody>${rowsHTML}</tbody>
+  </table></div>
+</div>
+<div class="footer-note">Road to Mil — Trading Journey 2026 &bull; Snapshot exported ${now}</div>
+</div>
+<script>
+new Chart(document.getElementById('snapChart'),{
+  type:'line',
+  data:{
+    labels:${chartLabels},
+    datasets:[
+      {label:'Target ($)',data:${chartTargets},borderColor:'#4a4845',borderWidth:1.5,borderDash:[5,4],pointRadius:2,pointBackgroundColor:'#4a4845',fill:false,tension:0.3,spanGaps:true},
+      {label:'Actual ($)',data:${chartActuals},borderColor:'#e8b84b',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#e8b84b',pointBorderColor:'#0b0c0f',pointBorderWidth:1.5,fill:false,tension:0.3,spanGaps:false}
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1d24',borderColor:'#2a2d34',borderWidth:1,titleColor:'#8a8680',bodyColor:'#f0ede8'}},
+    scales:{
+      y:{type:'logarithmic',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4a4845',font:{size:10},callback:v=>v>=1e6?'$'+(v/1e6)+'M':v>=1e3?'$'+(v/1e3)+'K':'$'+v}},
+      x:{grid:{display:false},ticks:{color:'#4a4845',font:{size:10},autoSkip:true,maxTicksLimit:15,maxRotation:30}}
+    }
+  }
+});
+<\/script>
+</body></html>`;
+
+  downloadBlob(new Blob([html],{type:'text/html;charset=utf-8;'}),'road_to_mil_dashboard_'+dateStamp()+'.html');
+  showToast('✓ Dashboard HTML exported');
+}
+
+/* ══════════════════════════════════════════════
+   EXPORT DASHBOARD AS PDF (print dialog)
+══════════════════════════════════════════════ */
+function exportDashboardJPEG(){
+  showToast('⏳ Rendering high-res image…');
+  setTimeout(()=>_renderJPEG(), 50);
+}
+
+function _renderJPEG(){
+  const s = getStats();
+  const endDate = weekEnd(15);
+  const pct = Math.min(100,(s.maxActual/3276800)*100);
+  const subtitleText = startDate&&weekEnd(15) ? '2026 Trading Journey — '+fmtDate(startDate,true)+' to '+fmtDate(weekEnd(15),true) : '2026 Trading Journey';
+  const now = new Date().toLocaleString();
+
+  // ── Canvas setup ──────────────────────────────
+  const DPR   = 3;           // output pixel density multiplier
+  const CW    = 1400;        // logical width
+  const PAD   = 44;
+  const INNER = CW - PAD*2;
+
+  // We'll compute row heights as we go; start with a tall canvas and crop later
+  const canvas = document.createElement('canvas');
+  const METRIC_H = 90, PROG_H = 68, CHART_H = 280, GAP = 14;
+  const HEADER_H = 100;
+  const TABLE_ROW_H = 34;
+  const TABLE_ROWS = WEEKS.length;
+  const TABLE_H = TABLE_ROW_H * TABLE_ROWS + 38; // 38 = thead
+  const SECTION_LABEL_H = 26;
+  const CHART_AREA_H = SECTION_LABEL_H + CHART_H;
+  const BODY_H = HEADER_H + GAP + METRIC_H + GAP + PROG_H + GAP + Math.max(CHART_AREA_H, TABLE_H) + PAD;
+  const CH = PAD + BODY_H + PAD;
+
+  canvas.width  = CW  * DPR;
+  canvas.height = CH  * DPR;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+
+  // ── Helpers ───────────────────────────────────
+  const BG       = '#0b0c0f';
+  const SURFACE  = '#13151a';
+  const SURFACE2 = '#1a1d24';
+  const BORDER   = 'rgba(255,255,255,0.08)';
+  const ACCENT   = '#e8b84b';
+  const ACCENT2  = '#c49433';
+  const GREEN    = '#4caf7d';
+  const RED      = '#e05c5c';
+  const BLUE     = '#5b9cf6';
+  const TEXT     = '#f0ede8';
+  const TEXT2    = '#8a8680';
+  const TEXT3    = '#4a4845';
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function card(x,y,w,h,accentColor){
+    roundRect(x,y,w,h,8);
+    ctx.fillStyle=SURFACE; ctx.fill();
+    ctx.strokeStyle=BORDER; ctx.lineWidth=0.5; ctx.stroke();
+    // top accent bar
+    roundRect(x,y,w,2,1);
+    ctx.fillStyle=accentColor||ACCENT;
+    ctx.globalAlpha=0.6; ctx.fill(); ctx.globalAlpha=1;
+  }
+
+  function txt(str,x,y,size,color,weight,align,maxW){
+    ctx.font=`${weight||400} ${size}px 'DM Mono',monospace`;
+    ctx.fillStyle=color||TEXT;
+    ctx.textAlign=align||'left';
+    ctx.textBaseline='alphabetic';
+    if(maxW) ctx.fillText(String(str),x,y,maxW);
+    else ctx.fillText(String(str),x,y);
+  }
+
+  function displayTxt(str,x,y,size,color,align){
+    ctx.font=`700 ${size}px 'Syne',sans-serif`;
+    ctx.fillStyle=color||TEXT;
+    ctx.textAlign=align||'left';
+    ctx.textBaseline='alphabetic';
+    ctx.fillText(String(str),x,y);
+  }
+
+  // ── Background ────────────────────────────────
+  ctx.fillStyle=BG;
+  ctx.fillRect(0,0,CW,CH);
+
+  // subtle dot grid
+  ctx.fillStyle='rgba(232,184,75,0.04)';
+  for(let gx=0;gx<CW;gx+=40){
+    for(let gy=0;gy<CH;gy+=40){
+      ctx.fillRect(gx,gy,1,1);
+    }
+  }
+
+  let cy = PAD; // current Y cursor
+
+  // ── Header ────────────────────────────────────
+  // Logo box
+  roundRect(PAD, cy, 60, 60, 12);
+  ctx.fillStyle=SURFACE2; ctx.fill();
+  ctx.strokeStyle=BORDER; ctx.lineWidth=0.5; ctx.stroke();
+
+  if(logoDataURL){
+    const img=new Image();
+    img.src=logoDataURL;
+    // Draw synchronously — it's already loaded (base64)
+    try{
+      ctx.save();
+      roundRect(PAD,cy,60,60,12);
+      ctx.clip();
+      ctx.drawImage(img,PAD,cy,60,60);
+      ctx.restore();
+    }catch(e){}
+  } else {
+    txt('No logo',PAD+30,cy+34,9,TEXT3,400,'center');
+  }
+
+  // Title
+  txt('● LIVE TRACKER', PAD+78, cy+14, 9, ACCENT, 500);
+  displayTxt('Road to ', PAD+78, cy+48, 38, TEXT);
+  // measure "Road to " width to place "Mil" in accent
+  ctx.font='700 38px Syne,sans-serif';
+  const roadW = ctx.measureText('Road to ').width;
+  displayTxt('Mil', PAD+78+roadW, cy+48, 38, ACCENT);
+  txt(subtitleText, PAD+78, cy+66, 12, TEXT2, 400);
+
+  // Timestamp top-right
+  txt(now, CW-PAD, cy+14, 10, TEXT3, 400, 'right');
+
+  cy += HEADER_H + GAP;
+
+  // ── Metrics ───────────────────────────────────
+  const mActualClass = s.curActual!==null?(s.curActual>=s.lastDoneWeek.target?'green':'red'):'';
+  const mRate = s.curActual!==null?fmtPct(((s.curActual-s.lastDoneWeek.start)/s.lastDoneWeek.start)*100):'—';
+  const mRateClass = s.curActual!==null?(((s.curActual-s.lastDoneWeek.start)/s.lastDoneWeek.start)*100>=100?'green':'red'):'';
+  const mDeadline = endDate?fmtDate(endDate,true):'—';
+  const mDeadlineSub = endDate?(daysFromToday(endDate)>=0?daysFromToday(endDate)+' days remaining':'Journey completed'):'—';
+  const mDeadlineClass = endDate?(daysFromToday(endDate)<0?'green':daysFromToday(endDate)<=7?'red':''):'';
+
+  const clr = c => c==='green'?GREEN:c==='red'?RED:c==='blue'?BLUE:ACCENT;
+  const metrics = [
+    {label:'CURRENT WEEK',   val:'W'+s.curWeek,                          sub:'Start: '+fmtUSD(s.curData.start), cls:'blue'},
+    {label:"THIS WK'S TARGET",val:fmtUSD(s.curData.target),              sub:' ',                              cls:mActualClass},
+    {label:'ACTUAL (USD)',   val:s.curActual!==null?fmtUSD(s.curActual):'—', sub:' ',                         cls:mActualClass},
+    {label:'RETURN RATE',    val:mRate,                                   sub:'Target: 100% gain',              cls:mRateClass},
+    {label:'WEEKS DONE',     val:String(s.doneCount),                    sub:'of 15 total',                    cls:''},
+    {label:'JOURNEY END',    val:mDeadline,                              sub:mDeadlineSub,                     cls:mDeadlineClass},
+  ];
+  const mCount = metrics.length;
+  const mGap = 10;
+  const mW = (INNER - mGap*(mCount-1)) / mCount;
+
+  metrics.forEach((m,i)=>{
+    const mx = PAD + i*(mW+mGap);
+    card(mx, cy, mW, METRIC_H, clr(m.cls));
+    txt(m.label, mx+12, cy+22, 9, TEXT3, 500);
+    displayTxt(m.val, mx+12, cy+56, m.val.length>6?20:24, TEXT);
+    txt(m.sub, mx+12, cy+74, 10, TEXT2, 400, 'left', mW-16);
+  });
+
+  cy += METRIC_H + GAP;
+
+  // ── Progress bar ──────────────────────────────
+  card(PAD, cy, INNER, PROG_H, ACCENT);
+  txt('JOURNEY TO $3,276,800 — OVERALL PROGRESS', PAD+14, cy+24, 9, TEXT3, 500);
+  displayTxt(pct.toFixed(2)+'%', CW-PAD-14, cy+26, 16, ACCENT, 'right');
+
+  const barX=PAD+14, barY=cy+38, barW=INNER-28, barH=8;
+  roundRect(barX,barY,barW,barH,4);
+  ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
+  if(pct>0){
+    const fillW=Math.max(8,barW*(pct/100));
+    const grad=ctx.createLinearGradient(barX,0,barX+fillW,0);
+    grad.addColorStop(0,ACCENT2); grad.addColorStop(1,ACCENT);
+    roundRect(barX,barY,fillW,barH,4);
+    ctx.fillStyle=grad; ctx.fill();
+  }
+
+  cy += PROG_H + GAP;
+
+  // ── Chart (left) + Table (right) ─────────────
+  const leftW  = 420;
+  const rightW = INNER - leftW - GAP;
+  const leftX  = PAD;
+  const rightX = PAD + leftW + GAP;
+  const sectionY = cy;
+
+  // Chart card
+  card(leftX, sectionY, leftW, CHART_AREA_H, ACCENT);
+  txt('TARGET VS ACTUAL (LOG SCALE)', leftX+14, sectionY+20, 9, TEXT3, 500);
+
+  // Draw chart manually
+  const chartX=leftX+14, chartY=sectionY+32, chartW=leftW-28, chartH=CHART_H-20;
+
+  // Grid lines
+  const logTicks=[100,1000,10000,100000,1000000,3276800];
+  const logMin=Math.log10(100), logMax=Math.log10(3276800);
+  function logY(v){
+    const l=Math.log10(Math.max(1,v));
+    return chartY+chartH - ((l-logMin)/(logMax-logMin))*chartH;
+  }
+
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=0.5;
+  logTicks.forEach(t=>{
+    const ly=logY(t);
+    if(ly<chartY||ly>chartY+chartH) return;
+    ctx.beginPath(); ctx.moveTo(chartX,ly); ctx.lineTo(chartX+chartW,ly); ctx.stroke();
+    const lbl=t>=1e6?'$'+(t/1e6).toFixed(1)+'M':t>=1e3?'$'+(t/1e3)+'K':'$'+t;
+    txt(lbl,chartX,ly-3,8,TEXT3,400);
+  });
+
+  // X axis labels
+  const xStep = chartW/(WEEKS.length-1);
+  WEEKS.forEach((w,i)=>{
+    const xp=chartX+i*xStep;
+    const lbl=startDate?fmtDate(weekStart(w.week)):'W'+w.week;
+    if(i%2===0||i===WEEKS.length-1){
+      txt(lbl,xp,chartY+chartH+14,8,TEXT3,400,'center');
+    }
+  });
+
+  // Target line (dashed)
+  ctx.strokeStyle=TEXT3; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  WEEKS.forEach((w,i)=>{
+    const xp=chartX+i*xStep, yp=logY(w.target);
+    i===0?ctx.moveTo(xp,yp):ctx.lineTo(xp,yp);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Actual line (solid gold)
+  const actualPoints=[];
+  WEEKS.forEach((w,i)=>{
+    const v=actuals[w.week];
+    if(v!=null&&v!=='') actualPoints.push({x:chartX+i*xStep, y:logY(parseFloat(v))});
+    else actualPoints.push(null);
+  });
+  if(actualPoints.some(p=>p)){
+    ctx.strokeStyle=ACCENT; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    let started=false;
+    actualPoints.forEach(p=>{
+      if(!p){started=false;return;}
+      if(!started){ctx.moveTo(p.x,p.y);started=true;}
+      else ctx.lineTo(p.x,p.y);
+    });
+    ctx.stroke();
+    // dots
+    actualPoints.forEach(p=>{
+      if(!p)return;
+      ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2);
+      ctx.fillStyle='#0b0c0f'; ctx.fill();
+      ctx.strokeStyle=ACCENT; ctx.lineWidth=2; ctx.stroke();
+    });
+  }
+
+  // Legend
+  ctx.setLineDash([4,3]); ctx.strokeStyle=TEXT3; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(chartX,sectionY+CHART_AREA_H-16); ctx.lineTo(chartX+18,sectionY+CHART_AREA_H-16); ctx.stroke();
+  ctx.setLineDash([]);
+  txt('Target',chartX+22,sectionY+CHART_AREA_H-12,9,TEXT2,400);
+  ctx.beginPath(); ctx.arc(chartX+70,sectionY+CHART_AREA_H-16,4,0,Math.PI*2);
+  ctx.fillStyle=ACCENT; ctx.fill();
+  txt('Actual',chartX+78,sectionY+CHART_AREA_H-12,9,TEXT2,400);
+
+  // ── Table (right) ─────────────────────────────
+  card(rightX, sectionY, rightW, TABLE_H+38, ACCENT);
+
+  // Table header
+  roundRect(rightX,sectionY,rightW,38,8);
+  ctx.fillStyle=SURFACE2; ctx.fill();
+
+  const cols=[
+    {label:'WEEK',  w:52},
+    {label:'DATE RANGE', w:130},
+    {label:'START ($)',  w:90},
+    {label:'TARGET ($)', w:100},
+    {label:'ACTUAL ($)', w:100},
+    {label:'VS TARGET',  w:95},
+    {label:'RETURN %',   w:80},
+    {label:'STATUS',     w:0},  // fills remainder
+  ];
+  // compute last col width
+  const fixedW=cols.slice(0,-1).reduce((a,c)=>a+c.w,0);
+  cols[cols.length-1].w=rightW-fixedW-16;
+
+  let colX=rightX+8;
+  cols.forEach(c=>{
+    txt(c.label,colX+4,sectionY+24,8,TEXT3,500);
+    colX+=c.w;
+  });
+
+  // Divider
+  ctx.strokeStyle=BORDER; ctx.lineWidth=0.5;
+  ctx.beginPath(); ctx.moveTo(rightX,sectionY+38); ctx.lineTo(rightX+rightW,sectionY+38); ctx.stroke();
+
+  // Rows
+  WEEKS.forEach((w,ri)=>{
+    const raw=actuals[w.week];
+    const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const isDone=actual!==null;
+    const isCur=w.week===s.curWeek&&!isDone;
+    const hit=isDone&&actual>=w.target;
+    const miss=isDone&&!hit;
+    const ry=sectionY+38+ri*TABLE_ROW_H;
+
+    // Row background
+    if(isCur){ roundRect(rightX,ry,rightW,TABLE_ROW_H,0); ctx.fillStyle='rgba(91,156,246,0.07)'; ctx.fill(); }
+    else if(hit){ roundRect(rightX,ry,rightW,TABLE_ROW_H,0); ctx.fillStyle='rgba(76,175,125,0.07)'; ctx.fill(); }
+    else if(miss){ roundRect(rightX,ry,rightW,TABLE_ROW_H,0); ctx.fillStyle='rgba(224,92,92,0.07)'; ctx.fill(); }
+    else if(ri%2===0){ roundRect(rightX,ry,rightW,TABLE_ROW_H,0); ctx.fillStyle='rgba(255,255,255,0.01)'; ctx.fill(); }
+
+    // Row divider
+    ctx.strokeStyle=BORDER; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(rightX,ry+TABLE_ROW_H); ctx.lineTo(rightX+rightW,ry+TABLE_ROW_H); ctx.stroke();
+
+    const ty=ry+TABLE_ROW_H/2+5;
+    const ws2=weekStart(w.week), we2=weekEnd(w.week);
+    const dateStr=ws2&&we2?fmtDate(ws2)+' – '+fmtDate(we2):'—';
+    const vsTarget=isDone?(actual-w.target):null;
+    const returnRate=isDone?((actual-w.start)/w.start*100):null;
+    const vsColor=isDone?(vsTarget>=0?GREEN:RED):TEXT3;
+    const rateColor=isDone?(returnRate>=100?GREEN:RED):TEXT3;
+
+    const vals=[
+      {v:'W'+w.week, color:isCur?BLUE:TEXT2, bold:true},
+      {v:dateStr,    color:TEXT2},
+      {v:fmtUSD(w.start), color:TEXT3},
+      {v:fmtUSD(w.target),color:TEXT},
+      {v:isDone?fmtUSD(actual):'no data', color:isDone?TEXT:TEXT3},
+      {v:isDone?(vsTarget>=0?'+':'')+fmtUSD(vsTarget):'—', color:vsColor},
+      {v:isDone?fmtPct(returnRate):'—', color:rateColor},
+      {v:isCur?'Active':hit?'✓ Hit':miss?'✗ Miss':'Pending', color:isCur?BLUE:hit?GREEN:miss?RED:TEXT3, badge:true},
+    ];
+
+    let cx2=rightX+8;
+    vals.forEach((cell,ci)=>{
+      const cw=cols[ci].w;
+      if(cell.badge){
+        const bw=Math.min(cw-8,60), bh=18;
+        const bx=cx2+4, by=ty-13;
+        const bgC=isCur?'rgba(91,156,246,0.15)':hit?'rgba(76,175,125,0.15)':miss?'rgba(224,92,92,0.15)':'rgba(255,255,255,0.04)';
+        roundRect(bx,by,bw,bh,4);
+        ctx.fillStyle=bgC; ctx.fill();
+        ctx.font=`500 9px 'DM Mono',monospace`;
+        ctx.fillStyle=cell.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(cell.v,bx+bw/2,by+bh/2);
+        ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      } else {
+        ctx.font=`${cell.bold?600:400} ${cell.bold?12:11}px 'DM Mono',monospace`;
+        ctx.fillStyle=cell.color; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+        ctx.fillText(String(cell.v),cx2+4,ty,cw-8);
+      }
+      cx2+=cw;
+    });
+  });
+
+  // ── Crop canvas to actual content height ──────
+  const finalH = sectionY + Math.max(CHART_AREA_H, TABLE_H+38) + PAD;
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width  = CW * DPR;
+  finalCanvas.height = finalH * DPR;
+  const fCtx = finalCanvas.getContext('2d');
+  fCtx.drawImage(canvas, 0, 0);
+
+  // ── Download ──────────────────────────────────
+  const jpeg = finalCanvas.toDataURL('image/jpeg', 0.97);
+  downloadBlob(dataURLtoBlob(jpeg), 'road_to_mil_dashboard_'+dateStamp()+'.jpg');
+  showToast('✓ High-res JPEG saved ('+Math.round(finalCanvas.width/DPR)+'×'+Math.round(finalCanvas.height/DPR)+' @ '+DPR+'×)');
+}
+
+
+
+function dataURLtoBlob(dataURL){
+  const parts=dataURL.split(',');
+  const mime=parts[0].match(/:(.*?);/)[1];
+  const raw=atob(parts[1]);
+  const arr=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+
+/* ══════════════════════════════════════════════
+   RESET
+══════════════════════════════════════════════ */
+function resetAll(){
+  if(!confirm('Reset EVERYTHING?\n\nThis will clear:\n• All actual results\n• Journey start date\n• Uploaded logo\n• All saved settings\n\nThis cannot be undone. Export your data first if you want to keep it.')) return;
+
+  // Clear state
+  actuals={};
+  startDate=null;
+  logoDataURL=null;
+  currentLogoName='';
+  profileLabel='';
+  updateProfileUI();
+
+  // Clear localStorage
+  localStorage.removeItem(LS_KEY);
+
+  // Clear the cloud copy too, so it doesn't come back on next load
+  if(cloudAvailable!==false){
+    fetch(CLOUD_ENDPOINT,{method:'POST',headers:syncHeaders(),body:JSON.stringify({actuals:{},startDate:'',logoDataURL:null,logoName:'',profileLabel:''})}).catch(()=>{});
+  }
+
+  // Reset date input
+  const di=document.getElementById('startDateInput');
+  if(di) di.value='';
+
+  // Reset date calc display
+  ['dc-w1','dc-w15','dc-dur','dc-rem'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent='—';
+  });
+
+  // Reset logo everywhere
+  ['logoSmall','logoDash'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.parentElement.innerHTML=`<div id="${id}" class="logo-placeholder" style="font-size:8px;">${id==='logoDash'?'Change<br>in Settings':'Upload<br>Logo'}</div>`;
+  });
+  const big=document.getElementById('logoBigPreview');
+  if(big) big.innerHTML='<div class="lp-placeholder">No logo<br>uploaded</div>';
+  const nm=document.getElementById('logoName'); if(nm) nm.textContent='';
+  const rb=document.getElementById('removeLogoBtn'); if(rb) rb.style.display='none';
+
+  // Reset import info and data preview
+  const ii=document.getElementById('importedInfo');
+  if(ii){ii.style.display='none'; ii.textContent='';}
+  renderDataPreview();
+
+  // Re-render dashboard if it was active
+  renderAll();
+
+  showToast('✓ Everything has been reset');
+}
+
+/* ══════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════ */
+function dateStamp(){const d=new Date();return d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},100);}
+let toastTimer;
+function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2500);}
+
+/* ══════════════════════════════════════════════
+   CLOUD SYNC (Netlify Blobs, via a Netlify Function)
+   Every save pushes the full tracker state to /api/data,
+   a Netlify Function backed by Netlify Blobs — storage
+   that's automatically scoped to this deployed site. On
+   load we pull the cloud copy so the tracker stays in sync
+   across every device/browser that opens this site. If the
+   endpoint isn't reachable (this file opened locally, or
+   functions not deployed) everything still works from the
+   local browser cache, same as before.
+══════════════════════════════════════════════ */
+const CLOUD_ENDPOINT='/api/data';
+let cloudAvailable=null;      // null=unknown, true/false once checked
+let lastCloudSync=null;
+let cloudSyncTimer=null;
+
+function syncHeaders(){
+  const h={'content-type':'application/json'};
+  const secret=localStorage.getItem('rtm_sync_secret')||'';
+  if(secret) h['x-rtm-secret']=secret;
+  return h;
+}
+
+/* ---- on load: pull the cloud copy, if any, and let it win ---- */
+async function initCloudSync(){
+  updateSyncUI('checking');
+  try{
+    const res=await fetch(CLOUD_ENDPOINT,{headers:syncHeaders()});
+    if(res.status===401){cloudAvailable=true;updateSyncUI('unauthorized');return;}
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const cloud=await res.json();
+    cloudAvailable=true;
+    if(cloud && (cloud.actuals||cloud.startDate||cloud.logoDataURL||cloud.profileLabel)){
+      actuals=cloud.actuals||{};
+      startDate=cloud.startDate?parseLocalDate(cloud.startDate):null;
+      logoDataURL=cloud.logoDataURL||null;
+      currentLogoName=cloud.logoName||'';
+      profileLabel=cloud.profileLabel||'';
+      localStorage.setItem(LS_KEY,JSON.stringify(currentStatePayload()));
+      const di=document.getElementById('startDateInput');
+      if(di) di.value=startDate?toDateStr(startDate):'';
+      if(logoDataURL){
+        applyLogo(logoDataURL,currentLogoName);
+      }else{
+        ['logoSmall','logoDash'].forEach(id=>{
+          const el=document.getElementById(id);
+          if(el) el.parentElement.innerHTML='<div id="'+id+'" class="logo-placeholder" style="font-size:8px;">'+(id==='logoDash'?'Change<br>in Settings':'Upload<br>Logo')+'</div>';
+        });
+      }
+      updateProfileUI();
+      updateDateCalc();
+      renderDataPreview();
+      renderAll();
+      lastCloudSync=cloud.updatedAt?new Date(cloud.updatedAt):new Date();
+    }
+    updateSyncUI('synced');
+  }catch(e){
+    cloudAvailable=false;
+    updateSyncUI('local-only');
+  }
+}
+
+/* ---- debounce so rapid edits don't hammer the function ---- */
+function scheduleCloudSync(){
+  if(cloudAvailable===false)return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(pushCloudSync,600);
+}
+
+async function pushCloudSync(){
+  updateSyncUI('syncing');
+  try{
+    const res=await fetch(CLOUD_ENDPOINT,{method:'POST',headers:syncHeaders(),body:JSON.stringify(currentStatePayload())});
+    if(res.status===401){cloudAvailable=true;updateSyncUI('unauthorized');return;}
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const out=await res.json();
+    cloudAvailable=true;
+    lastCloudSync=out.updatedAt?new Date(out.updatedAt):new Date();
+    updateSyncUI('synced');
+  }catch(e){
+    updateSyncUI(cloudAvailable===false?'local-only':'error');
+  }
+}
+
+function manualSyncNow(){
+  if(cloudAvailable===false){showToast('⚠ Not running on Netlify — nothing to sync to');return;}
+  pushCloudSync();
+}
+async function reloadFromCloud(){
+  if(cloudAvailable===false){showToast('⚠ Not running on Netlify');return;}
+  if(!confirm('Reload from the cloud copy?\n\nThis overwrites unsaved local changes on this device with whatever is currently stored on Netlify.'))return;
+  await initCloudSync();
+  showToast('✓ Reloaded from cloud');
+}
+
+function handleSyncSecretInput(val){
+  const v=(val||'').trim();
+  if(v) localStorage.setItem('rtm_sync_secret',v); else localStorage.removeItem('rtm_sync_secret');
+  cloudAvailable=null;
+  initCloudSync();
+}
+
+/* ---- reflect state in the Settings UI ---- */
+function updateSyncUI(state){
+  const status=document.getElementById('backupStatus');
+  if(!status)return;
+  const when=lastCloudSync?(' · '+lastCloudSync.toLocaleTimeString()):'';
+  if(state==='checking'){
+    status.innerHTML='Checking cloud connection…';
+  }else if(state==='syncing'){
+    status.innerHTML='<span style="color:var(--accent)">○ Syncing…</span>';
+  }else if(state==='synced'){
+    status.innerHTML='<span style="color:var(--green)">● Synced</span> — this device and the cloud copy match'+when;
+  }else if(state==='local-only'){
+    status.innerHTML='<span style="color:var(--text3)">○ Local only</span> — no <code>/api/data</code> found, so this isn\'t syncing yet. If this is deployed on Netlify, check that the function shipped (see README). Data still saves to this browser and the <b style="color:var(--text)">Download Excel</b> button above still works.';
+  }else if(state==='unauthorized'){
+    status.innerHTML='<span style="color:var(--red)">⚠ Locked</span> — this site has a sync passcode set. Enter it below to sync.';
+  }else if(state==='error'){
+    status.innerHTML='<span style="color:var(--red)">⚠ Sync failed</span> — will retry on the next change. Data is safe in this browser meanwhile.';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+loadLS();
+updateDateCalc();
+renderDataPreview();
+(function(){const si=document.getElementById('syncSecretInput');if(si)si.value=localStorage.getItem('rtm_sync_secret')||'';})();
+initCloudSync();
+</script>
+</body>
+</html>
