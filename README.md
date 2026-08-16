@@ -91,3 +91,17 @@ IMPORTANT
   browser-only storage automatically and shows "○ Local only" in
   Settings. Nothing breaks; it just won't sync across devices until
   it's served by Netlify again.
+
+## Trading Actual + Capital Add-On (update)
+
+The Settings tab's editable table now has three related columns:
+
+- **Trading Actual ($)** — editable. Your pure trading result for the week.
+- **Capital Add-On ($)** — editable. Any extra capital you deposited that week (optional, defaults to $0).
+- **Actual ($)** — calculated, read-only. `Trading Actual + Capital Add-On`. This is what drives Return %, vs Target, Hit/Miss, the chart, and everything else downstream — same as the old manually-entered Actual did.
+
+If you were already using this tool before this update, your existing Actual entries are preserved automatically: on first load they're treated as your Trading Actual (minus any Capital Add-On already logged for that week), and the calculated Actual recomputes to the same number you had before.
+
+CSV/Excel exports and the standalone HTML snapshot all include the new columns. Re-importing a file exported from this tool picks Trading Actual back up directly; importing an older export (or a third-party CSV) that only has "Actual (USD)" still works — it's treated as the Trading Actual for that row.
+
+**Known gap:** the "Save Dashboard JPEG" export still doesn't show Trading Actual / Capital Add-On (same canvas-layout limitation noted above) — it does still show the correct calculated Actual.

@@ -275,11 +275,11 @@ td.date-cell{font-size:11px;color:var(--text2);}
         <div class="drop-area" id="dropArea" onclick="document.getElementById('importFileHidden').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
           <div class="drop-area-icon">📂</div>
           <div class="drop-area-text">Click to select or drag & drop file</div>
-          <div class="drop-area-sub">Supports .csv and .xlsx — reads "Actual (USD)" column</div>
+          <div class="drop-area-sub">Supports .csv and .xlsx — reads "Trading Actual (USD)" if present, else "Actual (USD)"</div>
         </div>
         <input type="file" id="importFileHidden" accept=".csv,.xlsx,.xls" onchange="handleImportFile(this)">
         <div class="imported-file-info" id="importedInfo"></div>
-        <div style="margin-top:14px;margin-bottom:4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);">Weekly actuals — edit directly below</div>
+        <div style="margin-top:14px;margin-bottom:4px;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);">Weekly trading actual & capital add-on — edit directly below · Actual is calculated</div>
         <div class="data-preview" id="dataPreview"></div>
       </div>
 
@@ -304,7 +304,7 @@ td.date-cell{font-size:11px;color:var(--text2);}
           </div>
           <div style="height:1px;background:var(--border);margin:4px 0;"></div>
 
-          <p style="font-size:11px;color:var(--text3);line-height:1.6;">Exports include week dates, targets (USD), actuals, return %, and status for all 15 weeks.</p>
+          <p style="font-size:11px;color:var(--text3);line-height:1.6;">Exports include week dates, targets (USD), trading actual, capital add-on, calculated actual, return %, and status for all 15 weeks.</p>
           <button class="btn btn-accent btn-lg" onclick="saveAll()" style="width:100%;justify-content:center;">&#10003; Save All Settings</button>
           <div style="height:1px;background:var(--border);margin:4px 0;"></div>
           <button class="btn btn-danger btn-lg" onclick="resetAll()" style="width:100%;justify-content:center;">&#8856; Reset Everything</button>
@@ -419,6 +419,8 @@ td.date-cell{font-size:11px;color:var(--text2);}
               <th style="width:130px;" class="date-col">Date Range</th>
               <th style="width:95px;">Start ($)</th>
               <th style="width:105px;">Target ($)</th>
+              <th style="width:115px;">Trading Actual ($)</th>
+              <th style="width:110px;">Capital Add-On ($)</th>
               <th style="width:115px;">Actual ($)</th>
               <th style="width:100px;">vs Target</th>
               <th style="width:80px;" class="rate-col">Return %</th>
@@ -492,7 +494,9 @@ function updateProfileUI(){
   }
 }
 
-let actuals={};
+let actuals={};          // computed: tradingActuals[w] + capitalAdds[w] — not entered directly
+let tradingActuals={};   // entered in Settings — pure trading result for the week
+let capitalAdds={};      // entered in Settings — extra capital deposited that week
 let startDate=null;
 let logoDataURL=null;
 
@@ -534,20 +538,44 @@ function deadlinePill(endDate){
 /* ══════════════════════════════════════════════
    STORAGE
 ══════════════════════════════════════════════ */
+function recomputeActual(wn){
+  const t=tradingActuals[wn];
+  const hasT=(t!=null&&t!==''&&!isNaN(parseFloat(t))&&parseFloat(t)>0);
+  if(!hasT){delete actuals[wn];return;}
+  const c=capitalAdds[wn];
+  const capAmt=(c!=null&&c!==''&&!isNaN(parseFloat(c))&&parseFloat(c)>0)?parseFloat(c):0;
+  actuals[wn]=parseFloat(t)+capAmt;
+}
 function loadLS(){
   try{
     const raw=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-    actuals=raw.actuals||{};
+    tradingActuals=raw.tradingActuals||{};
+    capitalAdds=raw.capitalAdds||{};
+    // Back-compat: older saves only had a directly-entered `actuals`. Treat
+    // that as the trading actual (minus any capital add-on already logged
+    // for that week) so existing data survives the upgrade unchanged.
+    const legacyActuals=raw.actuals||{};
+    WEEKS.forEach(w=>{
+      const wn=w.week;
+      const hasNew=tradingActuals[wn]!=null&&tradingActuals[wn]!=='';
+      const legacy=legacyActuals[wn];
+      if(!hasNew&&legacy!=null&&legacy!==''&&!isNaN(parseFloat(legacy))){
+        const cap=parseFloat(capitalAdds[wn])||0;
+        tradingActuals[wn]=parseFloat(legacy)-cap;
+      }
+    });
+    actuals={};
+    WEEKS.forEach(w=>recomputeActual(w.week));
     startDate=raw.startDate?parseLocalDate(raw.startDate):null;
     logoDataURL=raw.logoDataURL||null;
     profileLabel=raw.profileLabel||'';
     if(startDate) document.getElementById('startDateInput').value=raw.startDate;
     if(logoDataURL) applyLogo(logoDataURL,raw.logoName||'');
-  }catch(e){actuals={};startDate=null;logoDataURL=null;profileLabel='';}
+  }catch(e){actuals={};tradingActuals={};capitalAdds={};startDate=null;logoDataURL=null;profileLabel='';}
   updateProfileUI();
 }
 function currentStatePayload(){
-  return {actuals, startDate:toDateStr(startDate), logoDataURL, logoName:currentLogoName, profileLabel};
+  return {actuals, tradingActuals, capitalAdds, startDate:toDateStr(startDate), logoDataURL, logoName:currentLogoName, profileLabel};
 }
 function saveAll(){
   localStorage.setItem(LS_KEY,JSON.stringify(currentStatePayload()));
@@ -672,13 +700,15 @@ function parseCSVData(text){
   parseImportRows(lines);
 }
 function parseImportRows(rows){
-  let headerIdx=-1,actualCol=-1,startDateCol=-1;
+  let headerIdx=-1,actualCol=-1,startDateCol=-1,capitalCol=-1,tradingCol=-1;
   for(let i=0;i<rows.length;i++){
     const row=rows[i];
     for(let j=0;j<row.length;j++){
       const cell=String(row[j]).toLowerCase().trim();
       if(cell==='actual (usd)'){headerIdx=i;actualCol=j;}
       if(cell==='week start') startDateCol=j;
+      if(cell==='capital add-on (usd)') capitalCol=j;
+      if(cell==='trading actual (usd)') tradingCol=j;
     }
     if(headerIdx>=0)break;
   }
@@ -697,8 +727,25 @@ function parseImportRows(rows){
     if(!match)continue;
     const wn=parseInt(match[0]);
     if(wn<1||wn>15)continue;
-    const val=parseFloat(String(row[actualCol]).replace(/[^0-9.-]/g,''));
-    if(!isNaN(val)&&val>0)actuals[wn]=val;
+    if(capitalCol>=0){
+      const capVal=parseFloat(String(row[capitalCol]).replace(/[^0-9.-]/g,''));
+      if(!isNaN(capVal)&&capVal>0)capitalAdds[wn]=capVal;
+    }
+    if(tradingCol>=0){
+      // File has a Trading Actual column — use it directly.
+      const tVal=parseFloat(String(row[tradingCol]).replace(/[^0-9.-]/g,''));
+      if(!isNaN(tVal)&&tVal>0)tradingActuals[wn]=tVal;
+    }else{
+      // No Trading Actual column (older export, or a third-party file) —
+      // treat the Actual column as the trading result, backing out any
+      // capital add-on from the same row so the math still lines up.
+      const val=parseFloat(String(row[actualCol]).replace(/[^0-9.-]/g,''));
+      if(!isNaN(val)&&val>0){
+        const capAmt=capitalAdds[wn]||0;
+        tradingActuals[wn]=val-capAmt;
+      }
+    }
+    recomputeActual(wn);
   }
   saveAll();
 }
@@ -707,9 +754,14 @@ function renderDataPreview(){
   const container=document.getElementById('dataPreview');
   let rows='';
   WEEKS.forEach(w=>{
-    const raw=actuals[w.week];
-    const hasVal=raw!=null&&raw!=='';
-    const val=hasVal?parseFloat(raw):'';
+    const rawT=tradingActuals[w.week];
+    const hasT=rawT!=null&&rawT!=='';
+    const tVal=hasT?parseFloat(rawT):'';
+    const rawCap=capitalAdds[w.week];
+    const hasCap=rawCap!=null&&rawCap!=='';
+    const capVal=hasCap?parseFloat(rawCap):'';
+    const computed=actuals[w.week];
+    const hasComputed=computed!=null&&computed!=='';
     rows+=`<tr>
       <td>W${w.week}</td>
       <td style="color:var(--text2)">${fmtUSD(w.target)}</td>
@@ -718,34 +770,67 @@ function renderDataPreview(){
           type="number"
           min="0"
           step="0.01"
-          class="actual-input${hasVal?' has-val':''}"
+          class="actual-input trading-input${hasT?' has-val':''}"
           placeholder="Enter $"
-          value="${hasVal?val:''}"
+          value="${hasT?tVal:''}"
           data-week="${w.week}"
-          onchange="handleActualInput(this)"
-          oninput="this.className='actual-input'+(this.value?' has-val':'')"
+          onchange="handleTradingActualInput(this)"
+          oninput="this.className='actual-input trading-input'+(this.value?' has-val':'')"
         >
       </td>
+      <td>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          class="actual-input capital-input${hasCap?' has-val':''}"
+          placeholder="$0"
+          value="${hasCap?capVal:''}"
+          data-week="${w.week}"
+          onchange="handleCapitalAddInput(this)"
+          oninput="this.className='actual-input capital-input'+(this.value?' has-val':'')"
+        >
+      </td>
+      <td class="${hasComputed?'has-val':''}" style="font-family:var(--mono);">${hasComputed?fmtUSD(computed):'—'}</td>
     </tr>`;
   });
   container.innerHTML=`<table>
-    <thead><tr><th>Week</th><th>Target ($)</th><th>Actual ($) — editable</th></tr></thead>
+    <thead><tr><th>Week</th><th>Target ($)</th><th>Trading Actual ($) — editable</th><th>Capital Add-On ($) — editable</th><th>Actual ($) — calculated</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-function handleActualInput(el){
+function handleTradingActualInput(el){
   const wn=parseInt(el.dataset.week);
   const val=el.value.trim();
   if(val===''||isNaN(parseFloat(val))||parseFloat(val)<=0){
-    delete actuals[wn];
-    el.className='actual-input';
+    delete tradingActuals[wn];
+    el.className='actual-input trading-input';
   } else {
-    actuals[wn]=parseFloat(val);
-    el.className='actual-input has-val';
+    tradingActuals[wn]=parseFloat(val);
+    el.className='actual-input trading-input has-val';
   }
+  recomputeActual(wn);
   saveAll();
+  renderDataPreview();
   // Re-render dashboard if it's visible
+  const dash=document.getElementById('tab-dashboard');
+  if(dash&&dash.classList.contains('active')) renderAll();
+}
+
+function handleCapitalAddInput(el){
+  const wn=parseInt(el.dataset.week);
+  const val=el.value.trim();
+  if(val===''||isNaN(parseFloat(val))||parseFloat(val)<=0){
+    delete capitalAdds[wn];
+    el.className='actual-input capital-input';
+  } else {
+    capitalAdds[wn]=parseFloat(val);
+    el.className='actual-input capital-input has-val';
+  }
+  recomputeActual(wn);
+  saveAll();
+  renderDataPreview();
   const dash=document.getElementById('tab-dashboard');
   if(dash&&dash.classList.contains('active')) renderAll();
 }
@@ -859,11 +944,19 @@ function renderTable(){
     let dateHtml='<span style="color:var(--text3);font-size:11px;">—</span>';
     if(ws&&we) dateHtml=`<div class="date-range"><span class="date-start">${fmtDate(ws)} &ndash; ${fmtDate(we)}</span>${!isDone?deadlinePill(we):''}</div>`;
     const actualHtml=isDone?`<span class="actual-val">${fmtUSD(actual)}</span>`:'<span class="actual-empty">no data</span>';
+    const rawTrade=tradingActuals[w.week];
+    const tradeAmt=(rawTrade!=null&&rawTrade!=='')?parseFloat(rawTrade):null;
+    const tradeHtml=tradeAmt!=null?fmtUSD(tradeAmt):'<span class="actual-empty">no data</span>';
+    const rawCap=capitalAdds[w.week];
+    const capAmt=(rawCap!=null&&rawCap!=='')?parseFloat(rawCap):null;
+    const capHtml=capAmt?`<span class="vs-positive">+${fmtUSD(capAmt)}</span>`:'<span class="vs-neutral">—</span>';
     tbody.innerHTML+=`<tr class="${rowClass}">
       <td><span class="week-label ${isCur?'active-wk':''}">W${w.week}</span></td>
       <td class="date-cell">${dateHtml}</td>
       <td class="num">${fmtUSD(w.start)}</td>
       <td class="num">${fmtUSD(w.target)}</td>
+      <td class="num">${tradeHtml}</td>
+      <td class="num">${capHtml}</td>
       <td class="num">${actualHtml}</td>
       <td class="num">${vsHtml}</td>
       <td class="num rate-col">${rateHtml}</td>
@@ -927,14 +1020,18 @@ function renderAll(){renderMetrics();renderTable();renderChart();}
    EXPORT CSV
 ══════════════════════════════════════════════ */
 function exportCSV(){
-  const rows=[['Week','Week Start','Week End','Start (USD)','Target (USD)','Actual (USD)','vs Target (USD)','Return %','Status']];
+  const rows=[['Week','Week Start','Week End','Start (USD)','Target (USD)','Trading Actual (USD)','Capital Add-On (USD)','Actual (USD)','vs Target (USD)','Return %','Status']];
   WEEKS.forEach(w=>{
     const raw=actuals[w.week];const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const rawTrade=tradingActuals[w.week];const tradeAmt=(rawTrade!=null&&rawTrade!=='')?parseFloat(rawTrade):null;
+    const rawCap=capitalAdds[w.week];const capAmt=(rawCap!=null&&rawCap!=='')?parseFloat(rawCap):null;
     const isDone=actual!==null;const hit=isDone&&actual>=w.target;
     const curW=getCurrentWeek();
     const status=isDone?(hit?'Hit':'Miss'):(w.week===curW?'Active':'Pending');
     const ws=weekStart(w.week);const we=weekEnd(w.week);
     rows.push(['Week '+w.week,ws?toDateStr(ws):'',we?toDateStr(we):'',w.start,w.target,
+      tradeAmt!=null?tradeAmt:'',
+      capAmt!=null?capAmt:'',
       isDone?actual:'',
       isDone?parseFloat((actual-w.target).toFixed(2)):'',
       isDone?parseFloat(((actual-w.start)/w.start*100).toFixed(2)):'',status]);
@@ -952,21 +1049,25 @@ function exportExcel(){
   const endStr=weekEnd(15)?fmtDate(weekEnd(15),true):'Not set';
   const ws_data=[
     ['Road to Mil — Trading Journey 2026'],['Journey: '+startStr+' → '+endStr],[],
-    ['Week','Week Start','Week End','Start (USD)','Target (USD)','Actual (USD)','vs Target (USD)','Return %','Status']
+    ['Week','Week Start','Week End','Start (USD)','Target (USD)','Trading Actual (USD)','Capital Add-On (USD)','Actual (USD)','vs Target (USD)','Return %','Status']
   ];
   WEEKS.forEach(w=>{
     const raw=actuals[w.week];const actual=(raw!=null&&raw!=='')?parseFloat(raw):null;
+    const rawTrade=tradingActuals[w.week];const tradeAmt=(rawTrade!=null&&rawTrade!=='')?parseFloat(rawTrade):null;
+    const rawCap=capitalAdds[w.week];const capAmt=(rawCap!=null&&rawCap!=='')?parseFloat(rawCap):null;
     const isDone=actual!==null;const hit=isDone&&actual>=w.target;
     const curW=getCurrentWeek();
     const status=isDone?(hit?'Hit':'Miss'):(w.week===curW?'Active':'Pending');
     const ws=weekStart(w.week);const we=weekEnd(w.week);
     ws_data.push(['Week '+w.week,ws?toDateStr(ws):'',we?toDateStr(we):'',w.start,w.target,
+      tradeAmt!=null?tradeAmt:'',
+      capAmt!=null?capAmt:'',
       isDone?actual:'',
       isDone?parseFloat((actual-w.target).toFixed(2)):'',
       isDone?parseFloat(((actual-w.start)/w.start*100).toFixed(2)):'',status]);
   });
   const ws=XLSX.utils.aoa_to_sheet(ws_data);
-  ws['!cols']=[{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14},{wch:16},{wch:12},{wch:10}];
+  ws['!cols']=[{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:16},{wch:16},{wch:14},{wch:16},{wch:12},{wch:10}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Trading Log');
   XLSX.writeFile(wb,'road_to_mil_'+dateStamp()+'.xlsx');
   showToast('✓ Excel exported');
@@ -1014,11 +1115,17 @@ function exportDashboardHTML(){
     let dateHtml='<span style="color:#4a4845;font-size:11px;">—</span>';
     if(ws&&we) dateHtml=`<div class="date-range"><span class="date-start">${fmtDate(ws)} – ${fmtDate(we)}</span>${!isDone?deadlinePill(we):''}</div>`;
     const actualHtml=isDone?`<span class="actual-val">${fmtUSD(actual)}</span>`:'<span class="actual-empty">no data</span>';
+    const rawTrade=tradingActuals[w.week];const tradeAmt=(rawTrade!=null&&rawTrade!=='')?parseFloat(rawTrade):null;
+    const tradeHtml=tradeAmt!=null?fmtUSD(tradeAmt):'<span class="actual-empty">no data</span>';
+    const rawCap=capitalAdds[w.week];const capAmt=(rawCap!=null&&rawCap!=='')?parseFloat(rawCap):null;
+    const capHtml=capAmt?`<span class="vs-positive">+${fmtUSD(capAmt)}</span>`:'<span class="vs-neutral">—</span>';
     rowsHTML+=`<tr class="${rowClass}">
       <td><span class="week-label ${isCur?'active-wk':''}" >W${w.week}</span></td>
       <td class="date-cell">${dateHtml}</td>
       <td class="num">${fmtUSD(w.start)}</td>
       <td class="num">${fmtUSD(w.target)}</td>
+      <td class="num">${tradeHtml}</td>
+      <td class="num">${capHtml}</td>
       <td class="num">${actualHtml}</td>
       <td class="num">${vsHtml}</td>
       <td class="num rate-col">${rateHtml}</td>
@@ -1138,6 +1245,8 @@ td.date-cell{font-size:11px;color:var(--text2);}
     <thead><tr>
       <th style="width:55px;">Week</th><th style="width:130px;">Date Range</th>
       <th style="width:95px;">Start ($)</th><th style="width:105px;">Target ($)</th>
+      <th style="width:115px;">Trading Actual ($)</th>
+      <th style="width:110px;">Capital Add-On ($)</th>
       <th style="width:115px;">Actual ($)</th>
       <th style="width:100px;">vs Target</th><th style="width:80px;" class="rate-col">Return %</th><th style="width:80px;">Status</th>
     </tr></thead>
@@ -1565,10 +1674,12 @@ function dataURLtoBlob(dataURL){
    RESET
 ══════════════════════════════════════════════ */
 function resetAll(){
-  if(!confirm('Reset EVERYTHING?\n\nThis will clear:\n• All actual results\n• Journey start date\n• Uploaded logo\n• All saved settings\n\nThis cannot be undone. Export your data first if you want to keep it.')) return;
+  if(!confirm('Reset EVERYTHING?\n\nThis will clear:\n• All trading actuals\n• All capital add-ons\n• Journey start date\n• Uploaded logo\n• All saved settings\n\nThis cannot be undone. Export your data first if you want to keep it.')) return;
 
   // Clear state
   actuals={};
+  tradingActuals={};
+  capitalAdds={};
   startDate=null;
   logoDataURL=null;
   currentLogoName='';
@@ -1580,7 +1691,7 @@ function resetAll(){
 
   // Clear the cloud copy too, so it doesn't come back on next load
   if(cloudAvailable!==false){
-    fetch(CLOUD_ENDPOINT,{method:'POST',headers:syncHeaders(),body:JSON.stringify({actuals:{},startDate:'',logoDataURL:null,logoName:'',profileLabel:''})}).catch(()=>{});
+    fetch(CLOUD_ENDPOINT,{method:'POST',headers:syncHeaders(),body:JSON.stringify({actuals:{},tradingActuals:{},capitalAdds:{},startDate:'',logoDataURL:null,logoName:'',profileLabel:''})}).catch(()=>{});
   }
 
   // Reset date input
@@ -1654,8 +1765,21 @@ async function initCloudSync(){
     if(!res.ok) throw new Error('HTTP '+res.status);
     const cloud=await res.json();
     cloudAvailable=true;
-    if(cloud && (cloud.actuals||cloud.startDate||cloud.logoDataURL||cloud.profileLabel)){
-      actuals=cloud.actuals||{};
+    if(cloud && (cloud.actuals||cloud.tradingActuals||cloud.capitalAdds||cloud.startDate||cloud.logoDataURL||cloud.profileLabel)){
+      capitalAdds=cloud.capitalAdds||{};
+      tradingActuals=cloud.tradingActuals||{};
+      const legacyActuals=cloud.actuals||{};
+      WEEKS.forEach(w=>{
+        const wn=w.week;
+        const hasNew=tradingActuals[wn]!=null&&tradingActuals[wn]!=='';
+        const legacy=legacyActuals[wn];
+        if(!hasNew&&legacy!=null&&legacy!==''&&!isNaN(parseFloat(legacy))){
+          const cap=parseFloat(capitalAdds[wn])||0;
+          tradingActuals[wn]=parseFloat(legacy)-cap;
+        }
+      });
+      actuals={};
+      WEEKS.forEach(w=>recomputeActual(w.week));
       startDate=cloud.startDate?parseLocalDate(cloud.startDate):null;
       logoDataURL=cloud.logoDataURL||null;
       currentLogoName=cloud.logoName||'';
